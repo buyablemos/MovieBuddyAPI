@@ -1,0 +1,488 @@
+import heapq
+import os
+import time
+
+import pandas as pd
+from keras import Input
+from keras.src.callbacks import ModelCheckpoint, EarlyStopping
+from keras.src.optimizers import Adam
+from sklearn.preprocessing import OneHotEncoder, StandardScaler, LabelEncoder
+from sklearn.model_selection import train_test_split
+import tensorflow as tf
+import matplotlib.pyplot as plt
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Embedding, Flatten,concatenate,Concatenate,Lambda
+import numpy as np
+from tensorflow.keras.regularizers import l2
+
+
+import db
+
+all_genres = ['Animation', 'Documentary', 'War', 'Action', 'Crime', 'Western', 'Mystery',
+              'Adventure', 'Children\'s', 'Sci-Fi', 'Comedy', 'Fantasy', 'Horror',
+              'Film-Noir', 'Romance', 'Musical', 'Drama', 'Thriller']
+
+occupation_dict = {
+    "other or not specified": 0,
+    "academic/educator": 1,
+    "artist": 2,
+    "clerical/admin": 3,
+    "college/grad student": 4,
+    "customer service": 5,
+    "doctor/health care": 6,
+    "executive/managerial": 7,
+    "farmer": 8,
+    "homemaker": 9,
+    "K-12 student": 10,
+    "lawyer": 11,
+    "programmer": 12,
+    "retired": 13,
+    "sales/marketing": 14,
+    "scientist": 15,
+    "self-employed": 16,
+    "technician/engineer": 17,
+    "tradesman/craftsman": 18,
+    "unemployed": 19,
+    "writer": 20
+}
+tf.keras.config.enable_unsafe_deserialization()
+
+
+#Content Base Filtering - podejscie
+
+class Model_NN_CBF:
+
+    def __init__(self):
+        self.model_path = 'model_NN_CBF.keras'
+        self.model = self.load_trained_model()
+
+    def get_data(self):
+        database = db.Database()
+        ratings=database.get_ratings()
+        movies=database.get_movies()
+        users=database.get_users()
+
+        # Przetwarzanie danych użytkowników
+        users['gender'] = users['gender'].map({'F': 0, 'M': 1})  # Zamiana płci na wartości numeryczne
+
+        # Wybieranie odpowiednich kolumn (jeśli zawód jest liczbowy, pozostawiamy go)
+        users = users[['userId', 'gender', 'age', 'occupation', 'zip-code']]
+
+        movies['genres'] = movies['genres'].str.split('|')
+        all_genres = set(g for genre_list in movies['genres'] for g in genre_list)
+
+        # Tworzenie słownika dla wszystkich gatunków
+        genre_dict = {genre: movies['genres'].apply(lambda x: 1 if genre in x else 0) for genre in all_genres}
+
+        # Tworzenie DataFrame z gatunkami
+        genres_df = pd.DataFrame(genre_dict)
+
+        # Łączenie DataFrame gatunków z oryginalnym DataFrame filmów
+        movies = pd.concat([movies, genres_df], axis=1)
+
+        # Usunięcie oryginalnej kolumny 'genres'
+        movies.drop(['genres'], axis=1, inplace=True)
+
+        # Łączenie tabel na podstawie userId i movieId
+        data = ratings.merge(users, on='userId').merge(movies, on='movieId')
+        return data
+
+
+
+    def model_training(self):
+        data = self.get_data()
+        features = data.drop(['rating', 'title', 'userId', 'movieId','timestamp'], axis=1)
+        demographic_features = features.iloc[:, :4]  # Załóżmy, że pierwsze 5 kolumn to cechy demograficzne
+        genre_features = features.iloc[:, 4:]        # Pozostałe kolumny to gatunki filmowe
+        target = data['rating']
+
+        # Normalizacja cech demograficznych
+        #scaler = StandardScaler()
+        #demographic_features = scaler.fit_transform(demographic_features)
+
+        # Podział danych na zestawy treningowe i testowe
+        X_train_demo, X_test_demo, X_train_genre, X_test_genre, Y_train, Y_test = train_test_split(
+            demographic_features, genre_features, target, test_size=0.2, random_state=42
+        )
+
+        # Definicja modelu
+        # Wejście dla cech demograficznych
+        demo_input = Input(shape=(X_train_demo.shape[1],), name='demographic_input')
+        demo_dense = Dense(128, activation='relu')(demo_input)
+        demo_dense = BatchNormalization()(demo_dense)
+        demo_dense = Dropout(0.3)(demo_dense)
+
+        # Wejście dla gatunków filmowych
+        genre_input = Input(shape=(X_train_genre.shape[1],), name='genre_input')
+        genre_dense = Dense(128, activation='relu')(genre_input)
+        genre_dense = BatchNormalization()(genre_dense)
+        genre_dense = Dropout(0.3)(genre_dense)
+
+        # Łączenie obu gałęzi
+        concat = Concatenate()([demo_dense, genre_dense])
+        dense = Dense(256, activation='relu')(concat)
+        dense = BatchNormalization()(dense)
+        dense = Dropout(0.3)(dense)
+        dense = Dense(128, activation='relu')(dense)
+        dense = BatchNormalization()(dense)
+        dense = Dropout(0.3)(dense)
+        dense = Dense(64, activation='relu')(dense)
+        dense = BatchNormalization()(dense)
+        dense = Dropout(0.3)(dense)
+        dense = Dense(32, activation='relu')(dense)
+        dense = BatchNormalization()(dense)
+        dense = Dropout(0.3)(dense)
+        output = Dense(1, activation='sigmoid')(dense)
+        output = Lambda(lambda x: x*5)(output)
+
+
+
+        # Kompilacja modelu
+        model = tf.keras.models.Model(inputs=[demo_input, genre_input], outputs=output)
+        model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+
+        model.summary()
+
+        # Ustalanie callbacks
+        early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+        checkpoint = ModelCheckpoint('best_model_CBF.keras', monitor='val_loss', save_best_only=True)
+
+        # Trenowanie modelu
+        history = model.fit(
+            x=[X_train_demo, X_train_genre], y=Y_train,
+            epochs=10, batch_size=128, validation_split=0.2,
+            callbacks=[early_stopping, checkpoint]
+        )
+
+        # Wykres strat
+        training_loss = history.history['loss']
+        test_loss = history.history['val_loss']
+        epoch_count = range(1, len(training_loss) + 1)
+
+        plt.plot(epoch_count, training_loss, 'r--')
+        plt.plot(epoch_count, test_loss, 'b-')
+        plt.legend(['Training Loss', 'Test Loss'])
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.show()
+
+        # Ewaluacja modelu
+        loss, mae = model.evaluate([X_test_demo, X_test_genre], Y_test)
+        print(f'Final test Loss: {loss}, Final test MAE: {mae}')
+
+        # Zapis modelu
+        model.save(self.model_path)
+
+    def print_features_for_model(self):
+        data = self.get_data()
+        features = data.drop(['rating', 'title', 'userId', 'movieId'], axis=1)
+        target = data['rating']
+        print(features.columns)
+        print(features.shape)
+        print(features.head())
+        print(target.shape)
+        print(target.head())
+
+    def load_trained_model(self):
+        if os.path.exists(self.model_path):
+            model = tf.keras.models.load_model(self.model_path)
+            print("Model loaded successfully.")
+            return model
+        else:
+            self.model_training()
+            if os.path.exists(self.model_path):
+                model = tf.keras.models.load_model(self.model_path)
+                print("Model loaded successfully.")
+                return model
+            else:
+                raise FileNotFoundError(f"Model file '{self.model_path}' does not exist and can't create new one.")
+
+
+    def prepare_input_data(self, gender, age, occupation, zip_code, genres):
+
+        # Przekształcenie płci na wartości numeryczne
+        gender_numeric = 1 if gender == 'M' else 0
+
+        # Przygotowanie wektora one-hot dla gatunków
+        genre_vector = [1 if genre in genres else 0 for genre in all_genres]
+        occupation_nr = occupation_dict[occupation]
+        if occupation_nr != -1 :
+
+            input_features = np.array([
+                                          gender_numeric,
+                                          age,
+                                          occupation_nr,
+                                          zip_code
+                                      ]+genre_vector)
+
+            return input_features
+
+
+
+    def get_prediction(self, gender, age, occupation, zip_code, genres):
+        input_data = self.prepare_input_data(gender, age, occupation, zip_code, genres)
+
+
+        input_data = input_data.reshape(1, -1)  # Shape: (1, n_features)
+
+
+        demo_data = input_data[:, :4]
+        genre_data = input_data[:, 4:]
+
+        try:
+            prediction = self.model.predict([demo_data, genre_data])
+            return prediction[0][0]  # Zwróć tylko pierwszą (i jedyną) wartość przewidywania
+        except FileNotFoundError as e:
+            print(e)
+
+
+
+    def get_occupation_number(occupation, occupation_dict):
+
+        if occupation in occupation_dict:
+            return occupation_dict[occupation]
+        else:
+            print(f"Warning: Occupation '{occupation}' not avaiable.")
+            return -1
+
+    def get_predictions_on_all_movies(self, gender, age, occupation, zip_code,n):
+        movies=db.Database().get_movies()
+        movies['genres'] = movies['genres'].str.split('|')
+        best_ratings=[]
+
+        for index, movie in movies.iterrows():
+            predicted_rating = self.get_prediction(gender, age, occupation, zip_code, movie['genres'])
+            if len(best_ratings) < n:
+                heapq.heappush(best_ratings, (predicted_rating, movie['title']))
+            else:
+                if predicted_rating > best_ratings[0][0]:
+                    heapq.heapreplace(best_ratings, (predicted_rating, movie['title']))
+
+        best_ratings.sort(key=lambda x : x[0],reverse=True)
+
+        return best_ratings
+
+# Colaborative filtering
+
+class Model_NN_CF:
+    def __init__(self):
+        self.model_path = 'model_NN_CF.keras'
+        self.model = self.load_trained_model()
+
+    def load_trained_model(self):
+        if os.path.exists(self.model_path):
+            model = tf.keras.models.load_model(self.model_path)
+            print("Model loaded successfully.")
+            return model
+        else:
+            self.model_training()
+            if os.path.exists(self.model_path):
+                model = tf.keras.models.load_model(self.model_path)
+                print("Model loaded successfully.")
+                return model
+            else:
+                raise FileNotFoundError(f"Model file '{self.model_path}' does not exist and can't create new one.")
+
+
+    def get_data(self):
+        database = db.Database()
+        ratings=database.get_ratings()
+        movies=database.get_movies()
+        users=database.get_users()
+
+
+        users['gender'] = users['gender'].map({'F': 0, 'M': 1})  # Zamiana płci na wartości numeryczne
+
+
+        users = users[['userId', 'gender', 'age', 'occupation', 'zip-code']]
+
+        movies['genres'] = movies['genres'].str.split('|')
+        all_genres = set(g for genre_list in movies['genres'] for g in genre_list)
+
+        # Tworzenie słownika dla wszystkich gatunków
+        genre_dict = {genre: movies['genres'].apply(lambda x: 1 if genre in x else 0) for genre in all_genres}
+
+        # Tworzenie DataFrame z gatunkami
+        genres_df = pd.DataFrame(genre_dict)
+
+        # Łączenie DataFrame gatunków z oryginalnym DataFrame filmów
+        movies = pd.concat([movies, genres_df], axis=1)
+
+        # Usunięcie oryginalnej kolumny 'genres'
+        movies.drop(['genres'], axis=1, inplace=True)
+
+        # Łączenie tabel na podstawie userId i movieId
+        data = ratings.merge(users, on='userId').merge(movies, on='movieId')
+        return data
+
+    def model_training(self):
+
+        data = self.get_data()
+        n_users = data['userId'].max()+1
+        n_movies = data['movieId'].max()+1
+        n_dim = 100
+
+        print(n_users,n_movies)
+
+        # Warstwa wejściowa dla użytkowników
+        user = Input(shape=(1,), name='user_input')
+        U = Embedding(n_users, n_dim, embeddings_regularizer=l2(1e-6))(user)
+        U = Flatten()(U)
+        U = Dense(128, activation='relu', kernel_regularizer=l2(1e-6))(U)
+        U = BatchNormalization()(U)
+
+        # Warstwa wejściowa dla filmów
+        movie = Input(shape=(1,), name='movie_input')
+        M = Embedding(n_movies, n_dim, embeddings_regularizer=l2(1e-6))(movie)
+        M = Flatten()(M)
+        M = Dense(128, activation='relu', kernel_regularizer=l2(1e-6))(M)
+        M = BatchNormalization()(M)
+
+        # Połączenie warstw U i M
+        x = concatenate([U, M])
+        x = Dense(256, activation='relu', kernel_regularizer=l2(1e-6))(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
+        x = Dense(128, activation='relu', kernel_regularizer=l2(1e-6))(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
+        x = Dense(64, activation='relu', kernel_regularizer=l2(1e-6))(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
+
+        # Wyjście
+        final = Dense(1, activation='linear', kernel_regularizer=l2(1e-6))(x)
+
+        # Definicja modelu
+        model = tf.keras.models.Model(inputs=[user, movie], outputs=final)
+
+
+        model.compile(optimizer=Adam(0.0001),
+                      loss='mean_squared_error',
+                      metrics=['mae'])
+
+
+        model.summary()
+
+
+
+        checkpoint = ModelCheckpoint('best_model_CF.keras', monitor='val_loss', verbose=0, save_best_only=True)
+        early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
+        X_train_user, X_test_user, X_train_movie, X_test_movie, Y_train, Y_test = train_test_split(
+            data['userId'], data['movieId'], data['rating'], test_size=0.2, random_state=42
+        )
+        history=model.fit(
+            x=[X_train_user, X_train_movie], y=Y_train,
+            epochs=30, batch_size=64, validation_split=0.2,
+            callbacks=[checkpoint,early_stopping]
+        )
+
+        # Get training and test loss histories
+        training_loss = history.history['loss']
+        test_loss = history.history['val_loss']
+
+        # Create count of the number of epochs
+        epoch_count = range(1, len(training_loss) + 1)
+
+        # Visualize loss history
+        plt.plot(epoch_count, training_loss, 'r--')
+        plt.plot(epoch_count, test_loss, 'b-')
+        plt.legend(['Training Loss', 'Test Loss'])
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.show()
+
+        loss, mae = model.evaluate([X_test_user, X_test_movie], Y_test)
+        print(f'Final test loss: {loss}, Final test MAE: {mae}')
+
+
+        model.save(self.model_path)
+
+    def get_prediction(self, userId, movieId):
+        input_data = [userId, movieId]
+        #print(input_data)
+        try:
+            prediction = self.model.predict(input_data)
+            return prediction[0][0]
+        except FileNotFoundError as e:
+            print(e)
+
+    def get_top_n_recommendations(self,user_id, top_n=10):
+        database=db.Database()
+        user_watched_movies=database.get_movies_unwatched(user_id)
+        all_movie_ids=database.get_all_movie_ids()
+
+        movies_to_predict = [movie_id for movie_id in all_movie_ids if movie_id not in user_watched_movies]
+
+        user_input = np.array([user_id] * len(movies_to_predict))
+        movie_input = np.array(movies_to_predict)
+
+        predictions = self.model.predict([user_input, movie_input])
+
+        movies=database.get_movies()
+        movies_to_predict=pd.DataFrame({'movieId': movies_to_predict})
+        movies_to_predict=movies_to_predict.merge(movies,on='movieId')
+
+
+        predictions_df = pd.DataFrame({
+            'movieId': movies_to_predict['movieId'],
+            'title':  movies_to_predict['title'],
+            'predicted_rating': predictions.flatten()  # Flatten to uzyskać płaską tablicę
+        })
+
+        top_recommendations = predictions_df.sort_values(by='predicted_rating', ascending=False)
+
+        return top_recommendations.head(top_n).reset_index(drop=True)
+
+
+
+
+gender = 'F'
+age = 0
+occupation = "other or not specified"
+zip_code = 0
+genres = []
+
+
+gender = 'M'
+age = 45
+occupation = "farmer"
+zip_code = 0
+genres = [all_genres[1],all_genres[9],all_genres[7]]
+
+
+gender = 'M'
+age = 20
+occupation = "farmer"
+zip_code = 55330
+genres = [all_genres[2],all_genres[3]]
+
+
+
+gender = 'M'
+age = 56
+occupation = "retired"
+zip_code = 11002
+genres = ['Comedy','Romance']
+
+
+gender = 'M'
+age = 20
+occupation = "retired"
+zip_code = 55330
+genres = [all_genres[2],all_genres[3]]
+
+
+my_model=Model_NN_CBF()
+my_model.model_training()
+
+print(my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, 10))
+
+#print(my_model.get_top_n_recommendations(550,10))
+
+
+
+
+
+
+
