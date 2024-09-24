@@ -8,9 +8,43 @@ class Database:
     def __init__(self):
         self.conn = sqlite3.connect('movieAPI.db')
         self.cursor = self.conn.cursor()
+        self.create_registered_users_table()
 
     def __del__(self):
         self.conn.close()
+
+    def create_registered_users_table(self):
+        query = """
+        CREATE TABLE IF NOT EXISTS registered_users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL,
+            gender TEXT
+             
+        )"""
+        self.cursor.execute(query)
+        self.conn.commit()
+
+    def register_user(self, username: str, email: str, password: str, gender: str):
+        """Rejestruje nowego użytkownika w bazie danych."""
+        try:
+            query = """
+            INSERT INTO registered_users (username, email, password, gender)
+            VALUES (?, ?, ?, ?)
+            """
+            self.cursor.execute(query, (username, email, password, gender))
+            self.conn.commit()
+        except sqlite3.IntegrityError:
+            raise ValueError("Username or email already exists")
+
+    def login_user(self, username: str, password: str):
+        """Loguje użytkownika, zwracając jego dane, jeśli logowanie się powiodło."""
+        query = """
+        SELECT * FROM registered_users WHERE username = ? AND password = ?
+        """
+        self.cursor.execute(query, (username, password))
+        return self.cursor.fetchone()
 
     def create_table_from_data(self):
         movies = pd.read_csv('MovieLensData/movies.csv',sep=';')
@@ -120,7 +154,14 @@ class Database:
 
         return contents.iloc[0]
 
+    def google_login_check(self,email):
+        cursor = self.conn.cursor()
+
+        cursor.execute("SELECT * FROM registered_users WHERE email = ?", (email,))
+        user = cursor.fetchone()
+        return user
+
 
 db = Database()
-db.refresh_data()
+db.create_registered_users_table()
 
