@@ -197,42 +197,32 @@ class Model_NN_CBF:
                 raise FileNotFoundError(f"Model file '{self.model_path}' does not exist and can't create new one.")
 
 
-    def prepare_input_data(self, gender, age, occupation, zip_code, genres):
-
+    def prepare_input_data(self, gender, age, occupation, zip_code, genres_list):
         # Przekształcenie płci na wartości numeryczne
         gender_numeric = 1 if gender == 'M' else 0
 
         # Przygotowanie wektora one-hot dla gatunków
-        genre_vector = [1 if genre in genres else 0 for genre in all_genres]
-        occupation_nr = occupation_dict[occupation]
-        if occupation_nr != -1 :
+        genre_vector_template = [1 if genre in all_genres else 0 for genre in all_genres]
 
-            input_features = np.array([
+        occupation_nr = occupation_dict.get(occupation, -1)  # Domyślnie -1, jeśli zawód nie istnieje
+
+        # Tworzenie listy wejściowej dla każdego filmu
+        input_features = []
+        for genres in genres_list:
+            # Generowanie wektora gatunków dla danego filmu
+            genre_vector = [1 if genre in genres else 0 for genre in all_genres]
+
+            # Tworzenie pojedynczego wektora cech
+            feature_vector = np.array([
                                           gender_numeric,
                                           age,
                                           occupation_nr,
                                           zip_code
-                                      ]+genre_vector)
+                                      ] + genre_vector)
 
-            return input_features
+            input_features.append(feature_vector)
 
-
-
-    def get_prediction(self, gender, age, occupation, zip_code, genres):
-        input_data = self.prepare_input_data(gender, age, occupation, zip_code, genres)
-
-
-        input_data = input_data.reshape(1, -1)  # Shape: (1, n_features)
-
-
-        demo_data = input_data[:, :4]
-        genre_data = input_data[:, 4:]
-
-        try:
-            prediction = self.model.predict([demo_data, genre_data])
-            return prediction[0][0]  # Zwróć tylko pierwszą (i jedyną) wartość przewidywania
-        except FileNotFoundError as e:
-            print(e)
+        return np.array(input_features)
 
 
 
@@ -244,22 +234,45 @@ class Model_NN_CBF:
             print(f"Warning: Occupation '{occupation}' not avaiable.")
             return -1
 
-    def get_predictions_on_all_movies(self, gender, age, occupation, zip_code,n):
-        movies=db.Database().get_movies()
+    def get_prediction(self, gender, age, occupation, zip_code, genres):
+        input_data = self.prepare_input_data(gender, age, occupation, zip_code, genres)
+
+        input_data = input_data.reshape(1, -1)  # Shape: (1, n_features)
+        demo_data = input_data[:, :4]
+        genre_data = input_data[:, 4:]
+
+        try:
+            prediction = self.model.predict([demo_data, genre_data])
+            return prediction[0][0]  # Zwróć tylko pierwszą (i jedyną) wartość przewidywania
+        except FileNotFoundError as e:
+            print(e)
+
+    def get_predictions_on_all_movies(self, gender, age, occupation, zip_code, n=10):
+        # Inicjalizacja połączenia z bazą danych
+        database = db.Database()
+        # Pobierz wszystkie filmy z bazy danych
+        movies = database.get_movies()
+
+        # Zakładamy, że gatunki są rozdzielone pionowymi kreskami i zamieniamy je na listy
         movies['genres'] = movies['genres'].str.split('|')
-        best_ratings=[]
 
-        for index, movie in movies.iterrows():
-            predicted_rating = self.get_prediction(gender, age, occupation, zip_code, movie['genres'])
-            if len(best_ratings) < n:
-                heapq.heappush(best_ratings, (predicted_rating, movie['title']))
-            else:
-                if predicted_rating > best_ratings[0][0]:
-                    heapq.heapreplace(best_ratings, (predicted_rating, movie['title']))
+        # Przygotowanie danych wejściowych
+        input_data = self.prepare_input_data(gender, age, occupation, zip_code, movies['genres'].tolist())
+        assert np.issubdtype(input_data.dtype, np.number), "input_data contains non-numeric values"
 
-        best_ratings.sort(key=lambda x : x[0],reverse=True)
+        # Przewidywanie ocen dla wszystkich filmów na raz
+        predictions = self.model.predict([input_data[:, :4], input_data[:, 4:]])
+        predictions_df = pd.DataFrame({
+            'movieId': movies['movieId'],
+            'title': movies['title'],
+            'predicted_rating': predictions.flatten()  # Flatten to uzyskanie płaskiej tablicy
+        })
 
-        return best_ratings
+        # Sortowanie po najwyższych ocenach
+        top_recommendations = predictions_df.sort_values(by='predicted_rating', ascending=False)
+
+        # Zwracanie najlepszych rekomendacji
+        return top_recommendations.head(n).reset_index(drop=True)
 
 # Colaborative filtering
 
@@ -373,7 +386,7 @@ class Model_NN_CF:
         )
         history=model.fit(
             x=[X_train_user, X_train_movie], y=Y_train,
-            epochs=30, batch_size=64, validation_split=0.2,
+            epochs=10, batch_size=128, validation_split=0.2,
             callbacks=[checkpoint,early_stopping]
         )
 
@@ -473,12 +486,12 @@ zip_code = 55330
 genres = [all_genres[2],all_genres[3]]
 
 
-my_model=Model_NN_CBF()
-my_model.model_training()
-
-print(my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, 10))
-
-#print(my_model.get_top_n_recommendations(550,10))
+# my_model=Model_NN_CBF()
+# #my_model.model_training()
+#
+# print(my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, 10))
+#
+# #print(my_model.get_top_n_recommendations(550,10))
 
 
 

@@ -1,8 +1,34 @@
+import re
+
 import pandas as pd
 import sqlite3
 
 from sklearn.feature_extraction.text import CountVectorizer
 
+def process_title(title):
+
+    aka_match = re.search(r'\(a\.k\.a\.\s*(.*?)\)', title)
+    alternative_title=None
+    if aka_match:
+        alternative_title = aka_match.group(1).strip()
+
+    year_match = re.search(r'\((\d{4})\)$', title)
+    year = year_match.group(1) if year_match else None
+
+    if alternative_title:
+        title = alternative_title
+    else:
+        title = title.split(" (")[0]
+
+    # The umieszczamy na początku jesli jest
+    parts = title.split(", ")
+    if len(parts) > 1:
+        if 'The' in parts[1]:
+            title = "The "+parts[0] + ' ' + parts[1].replace('The', '')
+        else:
+            title = parts[0] + ' ' + parts[1]
+
+    return title+f" ({year})"
 
 class Database:
     def __init__(self):
@@ -93,6 +119,9 @@ class Database:
     def get_movies(self):
         query = "SELECT * FROM movies"
         movies_df = pd.read_sql_query(query, self.conn)
+
+        movies_df['title'] = movies_df['title'].apply(process_title)
+
         return movies_df
 
     def get_movies_watched(self,userId):

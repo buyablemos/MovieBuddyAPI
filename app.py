@@ -4,6 +4,7 @@ import db
 import recommender
 import hashlib
 from db import Database
+from neuralnetwork import Model_NN_CF, Model_NN_CBF
 
 app = Flask(__name__)
 CORS(app)
@@ -17,9 +18,7 @@ def compute_sha256(input_string: str) -> str:
 
 @app.route('/')
 def hello_world():  # put application's code here
-    reco = recommender.Recommender()
-    returned_reco = reco.recommend_on_user_SVD(8, 10)
-    return returned_reco
+    return 'Hello World!'
 
 
 @app.route('/recommend_on_movie_kNN_CF', methods=['GET'])
@@ -54,6 +53,26 @@ def recommend_on_history_kNN_CBF():
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_history_kNN_CBF(n_reccomend)
     return jsonify({'data': recommendations})
+@app.route('/reccomend_on_user_NN_CF', methods=['GET'])
+def reccomend_on_user_NN_CF():
+    user_id = int(request.args.get('user_id'))
+    n_reccomend = int(request.args.get('n_reccomend', 5))
+    my_model=Model_NN_CF()
+    recommendations=my_model.get_top_n_recommendations(user_id,n_reccomend)
+    rating_title_list = list(zip(recommendations['predicted_rating'], recommendations['title']))
+    return jsonify({'data': rating_title_list})
+
+@app.route('/reccomend_on_user_NN_CBF', methods=['GET'])
+def reccomend_on_user_NN_CBF():
+    gender = int(request.args.get('gender'))
+    age = int(request.args.get('age'))
+    occupation = int(request.args.get('occupation'))
+    zip_code = int(request.args.get('zip_code'))
+    n_reccomend = int(request.args.get('n_reccomend', 5))
+    my_model=Model_NN_CBF()
+    recommendations=my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, n_reccomend)
+    rating_title_list = list(zip(recommendations['predicted_rating'], recommendations['title']))
+    return jsonify({'data': rating_title_list})
 
 
 @app.route('/recommend_on_user_SVD', methods=['GET'])
