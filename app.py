@@ -125,7 +125,8 @@ def login_user():
     user_data = db.login_user(username=username, password=hashed_password)
     if user_data:
         print("Login successful! User name:", user_data[1])
-        return jsonify({'message': 'User login successfully!'}), 201
+        return jsonify({'message': 'User login successfully!',
+                        'username': user_data[1]},), 201
     else:
         print("Invalid username or password.")
         return jsonify({'error': 'Invalid username or password.'}), 400
@@ -140,11 +141,153 @@ def login_google():
     user=db.google_login_check(email)
 
     if user:
-
-        return jsonify({'success': True, 'message': 'User logged in successfully'})
+        return jsonify({'success': True, 'message': 'User logged in successfully', 'username': user[1]})
     else:
 
         return jsonify({'success': False, 'message': 'User not found. Please complete registration with username.'})
+
+@app.route('/users/<username>', methods=['GET'])
+def get_user(username):
+    db = Database()
+
+    registered_user = db.get_registered_user_by_username(username)
+
+
+    if registered_user:
+        user_id = registered_user[5]
+        user = db.get_user_by_id(user_id)
+
+        if user:
+            return jsonify({
+                'username': registered_user[1],
+                'email': registered_user[2],
+                'gender': registered_user[4],
+                'age': user[2],
+                'occupation': user[3],
+                'zipcode': user[4]
+            }), 200
+        else:
+            return jsonify({
+                'username': registered_user[1],
+                'email': registered_user[2],
+                'gender': registered_user[4]
+            }), 200
+    else:
+        return jsonify({'error': 'Registered user not found.'}), 404
+
+
+@app.route('/users/<username>', methods=['PUT'])
+def update_user(username):
+    db = Database()
+    data = request.get_json()
+
+    registered_user = db.get_registered_user_by_username(username)
+
+    if registered_user:
+        user_id = registered_user[5]
+
+        # Start transaction
+        try:
+            # Jeśli userId jest NULL, stwórz nowego użytkownika
+            if user_id is None:
+                new_gender = registered_user[4]  # Zakładam, że gender jest na indeksie 4
+                new_age = data.get('age')
+                new_occupation = data.get('occupation')
+                new_zipcode = data.get('zipcode')
+
+                # Dodaj nowego użytkownika
+                new_user_id = db.create_user(new_gender, new_age, new_occupation, new_zipcode)
+
+                # Zaktualizuj userId w registered_users
+                db.update_registered_user_userId(username, new_user_id)
+                user_id = new_user_id
+
+            new_email = data.get('email')
+            if new_email:
+                db.update_registered_user_email(username, new_email)
+
+            db.update_user(user_id, data.get('gender'), data.get('age'), data.get('occupation'), data.get('zipcode'))
+            db.conn.commit()
+            return jsonify({'message': 'User data updated successfully!'}), 200
+        except Exception as e:
+
+            db.conn.rollback()
+            return jsonify({'error': str(e)}), 400
+    else:
+        return jsonify({'error': 'Registered user not found.'}), 404
+
+
+@app.route('/users/<username>/movies-unwatched', methods=['GET'])
+def get_movies_unwatched(username):
+    db = Database()
+    user_id=db.get_user_id_by_username(username)[0]
+
+    if user_id:
+        movies = db.get_movie_titles_unwatched(user_id)
+        movies = movies.to_dict(orient='records')
+    else:
+        movies = db.get_movies()
+        movies=movies[['movieId','title']]
+        movies = movies.to_dict(orient='records')
+
+    return jsonify({'data': movies}), 200
+
+@app.route('/users/<username>/userid', methods=['GET'])
+def get_user_id_by_username(username):
+    db = Database()
+    user_id=db.get_user_id_by_username(username)
+    if user_id:
+        return jsonify({'userid': user_id}), 200
+    else:
+        return jsonify({'userid' : None}), 200
+
+
+@app.route('/add-rating', methods=['POST'])
+def add_user_rating():
+    db = Database()
+    data = request.get_json()
+
+    userid = data['userId'][0]
+    movieid = data['movieId']
+    rating = data['rating']
+
+    done = db.add_rating(userid, movieid, rating)
+
+    if done:
+        return jsonify({'success': True, 'message': 'Rating added successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Rating not added'})
+
+
+@app.route('/<userId>/last-ratings', methods=['GET'])
+def get_user_rating(userId):
+    db = Database()
+
+    ratings_df = db.get_ratings_info(userId)
+    ratings = ratings_df.to_dict(orient='records')
+
+    if ratings:
+        return jsonify({'data': ratings}), 200
+    else:
+        return jsonify({'success': False, 'error': 'No ratings found'}), 404
+
+
+@app.route('/<int:userId>/ratings/<int:movieId>', methods=['DELETE'])
+def delete_rating(userId, movieId):
+    db = Database()
+
+    try:
+        deleted = db.delete_rating(userId, movieId)
+        if deleted:
+            return jsonify({'success': True, 'message': 'Rating deleted successfully'}), 200
+        else:
+            return jsonify({'success': False, 'message': 'Rating not found'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+
+
 
 
 

@@ -1,3 +1,4 @@
+import datetime
 import re
 
 import pandas as pd
@@ -46,7 +47,9 @@ class Database:
             username TEXT NOT NULL UNIQUE,
             email TEXT NOT NULL UNIQUE,
             password TEXT NOT NULL,
-            gender TEXT
+            gender TEXT,
+            userId INTEGER UNIQUE,
+            FOREIGN KEY (userId) REFERENCES users(userId)
              
         )"""
         self.cursor.execute(query)
@@ -134,6 +137,22 @@ class Database:
         movies_df = pd.read_sql_query(query, self.conn, params=(userId,))
         return movies_df
 
+    def get_ratings_info(self,userId):
+        query = """
+            SELECT m.movieId, m.title, r.rating, r.timestamp
+            FROM movies m 
+            LEFT JOIN ratings r ON m.movieId = r.movieId AND r.userId = ? 
+            WHERE r.movieId IS NOT NULL
+        """
+        movies_df = pd.read_sql_query(query, self.conn, params=(userId,))
+
+        return movies_df
+
+    def get_movie_titles_unwatched(self,userId):
+        query="SELECT m.movieId, m.title FROM movies m LEFT JOIN ratings r ON m.movieId = r.movieId AND r.userId = ? WHERE r.movieId IS NULL"
+        movies_df = pd.read_sql_query(query, self.conn, params=(userId,))
+        return movies_df
+
     def get_users(self):
         query = "SELECT * FROM users"
         users_df = pd.read_sql_query(query, self.conn)
@@ -167,9 +186,7 @@ class Database:
         if movie_data.empty or 'genres' not in movie_data.columns:
             raise ValueError(f"No movie found with ID {movie_id} or 'genres' column is missing")
 
-
         vectorizer = CountVectorizer(stop_words='english')
-
 
         all_movies_query = "SELECT genres FROM movies"
         all_movies = pd.read_sql_query(all_movies_query, self.conn)
@@ -177,20 +194,83 @@ class Database:
 
         genres = vectorizer.transform(movie_data['genres']).toarray()
 
-
         contents = pd.DataFrame(genres, columns=vectorizer.get_feature_names_out(), index=movie_data.index)
-
 
         return contents.iloc[0]
 
-    def google_login_check(self,email):
+    def google_login_check(self, email):
         cursor = self.conn.cursor()
 
         cursor.execute("SELECT * FROM registered_users WHERE email = ?", (email,))
         user = cursor.fetchone()
         return user
 
+    def get_registered_user_by_username(self, username):
+        self.cursor.execute("SELECT * FROM registered_users WHERE username = ?", (username,))
+        user= self.cursor.fetchone()
+        return user
+
+    def get_user_by_id(self, user_id):
+        self.cursor.execute("SELECT * FROM users WHERE userId = ?", (user_id,))
+        return self.cursor.fetchone()
+    def get_user_id_by_username(self, username):
+        self.cursor.execute("SELECT userId FROM registered_users WHERE username = ?", (username,))
+        return self.cursor.fetchone()
+
+    def update_user(self, user_id, gender, age, occupation, zipcode):
+        self.cursor.execute("""
+            UPDATE users
+            SET gender = ?, age = ?, occupation = ?, "zip-code" = ?
+            WHERE userId = ?
+        """, (gender, age, occupation, zipcode, user_id))
+        return self.cursor.rowcount > 0
+
+
+    def create_user(self, gender, age, occupation, zipcode):
+
+        self.cursor.execute("SELECT userId FROM users ORDER BY userId DESC LIMIT 1")
+        user_id = self.cursor.fetchone()[0] + 1
+
+        self.cursor.execute("""
+            INSERT INTO users (userId,gender, age, occupation, "zip-code")
+            VALUES (?,?, ?, ?, ?)
+        """, (user_id,gender, age, occupation, zipcode))
+        return user_id  # Zwróć ID nowo utworzonego użytkownika
+
+    def update_registered_user_userId(self, username, user_id):
+        self.cursor.execute("""
+            UPDATE registered_users
+            SET userId = ?
+            WHERE username = ?
+        """, (user_id, username))
+        return self.cursor.rowcount > 0
+
+    def update_registered_user_email(self, username, email):
+        cursor = self.cursor
+        query = """
+        UPDATE registered_users
+        SET email = ?
+        WHERE username = ?;
+        """
+        cursor.execute(query, (email, username))
+        return cursor.rowcount > 0
+    def add_rating(self,user_id: int, movie_id: int, rating: int):
+        timestamp=int(datetime.datetime.now().timestamp())
+        self.cursor.execute("""
+            INSERT INTO ratings (userId ,movieId , rating ,timestamp)
+            VALUES (?, ?, ? , ?)
+        """, (user_id,movie_id, rating,timestamp))
+        self.conn.commit()
+        return self.cursor.rowcount > 0
+
+    def delete_rating(self, userId, movieId):
+        query = "DELETE FROM ratings WHERE userId = ? AND movieId = ?"
+        self.cursor.execute(query, (userId, movieId))
+        self.conn.commit()
+        return self.cursor.rowcount > 0
+
+
 
 db = Database()
-db.create_registered_users_table()
+
 
