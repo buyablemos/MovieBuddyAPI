@@ -37,17 +37,14 @@ def build_SVD(database):
     reader = Reader(line_format='user item rating timestamp', sep=',')
     data = Dataset.load_from_df(ratings_df[['userId', 'movieId', 'rating']], reader)
 
-    # Przygotowanie zestawów danych
+
     trainset, testset = train_test_split(data, test_size=0.25)
 
-    # Budowanie modelu SVD
     model = SVD()
     model.fit(trainset)
 
-    # Przewidywanie na zestawie testowym
     predictions = model.test(testset)
 
-    # Dokładność
     rmse = accuracy.rmse(predictions)
     print(f"RMSE: {rmse}")
 
@@ -59,5 +56,3 @@ def train_models():
     build_kNN_CF(database)
     build_kNN_CBF(database)
     build_SVD(database)
-
-train_models()

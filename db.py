@@ -268,9 +268,3 @@ class Database:
         self.cursor.execute(query, (userId, movieId))
         self.conn.commit()
         return self.cursor.rowcount > 0
-
-
-
-db = Database()
-
-

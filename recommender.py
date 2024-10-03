@@ -1,85 +1,108 @@
+import os
+
 import numpy as np
 import joblib
-import pandas as pd
 import db
-import tensorflow as tf
+import building_models as bm
 
 class Recommender:
-    def __init__(self):
 
+    def load_recommendation_model(self, model_path, attempts=0, max_attempts=5):
+
+        if attempts >= max_attempts:
+            print(f"Przekroczono maksymalną liczbę prób ładowania modelu: {model_path}")
+            return None
+
+        if os.path.exists(model_path):
+            try:
+                model = joblib.load(model_path)
+                print(f"Model załadowany pomyślnie: {model_path}")
+                return model
+            except Exception as e:
+                print(f"Błąd podczas ładowania modelu z {model_path}: {e}")
+                return None
+        else:
+            print(f"Plik modelu nie istnieje: {model_path}")
+            if model_path == 'knn_model_CF.pkl':
+                bm.build_kNN_CF(self.database)
+            elif model_path == 'knn_model_CBF.pkl':
+                bm.build_kNN_CBF(self.database)
+            elif model_path == 'svd_model.pkl':
+                bm.build_SVD(self.database)
+
+            return self.load_recommendation_model(model_path, attempts + 1, max_attempts)
+
+    def __init__(self):
         self.hist = []
-        self.ishist = False
-        self.knn_model_CF = joblib.load('knn_model_CF.pkl')
-        self.knn_model_CBF = joblib.load('knn_model_CBF.pkl')
-        self.SVD_model = joblib.load('svd_model.pkl')
         self.database = db.Database()
 
-#Collaborative Filtering
-    def recommend_on_movie_kNN_CF(self,movie,n_reccomend = 5):
-        self.ishist = True
-        movieid = self.database.get_movie_id(movie)
-        rating_pivot=self.database.get_rating_pivot()
-        movies=self.database.get_movies()
-        self.hist.append(movieid)
-        distance,neighbors = self.knn_model_CF.kneighbors([rating_pivot.loc[movieid]],n_neighbors=n_reccomend+1)
-        movieids = [rating_pivot.iloc[i].name for i in neighbors[0]]
-        recommeds = [str(movies[movies['movieId']==mid]['title']).split('\n')[0].split('  ')[-1] for mid in movieids if mid not in [movieid]]
-        return recommeds[:n_reccomend]
+    #Collaborative Filtering
 
-    def recommend_on_user_history_kNN_CF(self,n_reccomend = 5):
-        if self.ishist == False:
-            return print('No history found')
-        rating_pivot=self.database.get_rating_pivot()
-        movies=self.database.get_movies()
+    def recommend_on_movie_kNN_CF(self, movie, n_reccomend=5):
+        knn_model_CF = self.load_recommendation_model('knn_model_CF.pkl')
+        movieId = self.database.get_movie_id(movie)
+        rating_pivot = self.database.get_rating_pivot()
+        movies = self.database.get_movies()
+        distance, neighbors = knn_model_CF.kneighbors([rating_pivot.loc[movieId]], n_neighbors=n_reccomend + 1)
+        movieids = [rating_pivot.iloc[i].name for i in neighbors[0]]
+        recommends = [str(movies[movies['movieId'] == mid]['title']).split('\n')[0].split('  ')[-1] for mid in movieids
+                     if mid not in [movieId]]
+        return recommends[:n_reccomend]
+
+    def recommend_on_user_history_kNN_CF(self, userId, n_reccomend=5):
+        knn_model_CF = self.load_recommendation_model('knn_model_CF.pkl')
+        self.hist = []
+        self.hist=self.database.get_movies_watched(userId)['movieId'].tolist()
+        rating_pivot = self.database.get_rating_pivot()
+        movies = self.database.get_movies()
         history = np.array([list(rating_pivot.loc[mid]) for mid in self.hist])
-        distance,neighbors = self.model.kneighbors([np.average(history,axis=0)],n_neighbors=n_reccomend + len(self.hist))
+        distance, neighbors = knn_model_CF.kneighbors([np.average(history, axis=0)],
+                                                           n_neighbors=n_reccomend + len(self.hist))
         movieids = [rating_pivot.iloc[i].name for i in neighbors[0]]
-        recommeds = [str(movies[movies['movieId']==mid]['title']).split('\n')[0].split('  ')[-1] for mid in movieids if mid not in self.hist]
-        return recommeds[:n_reccomend]
+        recommends = [str(movies[movies['movieId'] == mid]['title']).split('\n')[0].split('  ')[-1] for mid in movieids
+                     if mid not in self.hist]
+        return recommends[:n_reccomend]
 
-#Content Base Filtering
+    #Content Base Filtering
 
+    def recommend_on_movie_kNN_CBF(self, movie, n_reccomend=5):
+        knn_model_CBF = self.load_recommendation_model('knn_model_CBF.pkl')
+        movies = self.database.get_movies()
+        movieId = self.database.get_movie_id(movie)
+        distance, neighbors = knn_model_CBF.kneighbors([self.database.get_movie_features_on_id(movieId)],
+                                                            n_neighbors=n_reccomend + 1)
+        recommends = [movies.iloc[i]['title'] for i in neighbors[0] if i not in [movieId]]
+        return recommends[:n_reccomend]
 
-    def recommend_on_movie_kNN_CBF(self,movie,n_reccomend = 5):
-        self.ishist = True
-        movies=self.database.get_movies()
-        iloc = movies[movies['title']==movie].index[0]
-        self.hist.append(iloc)
-        distance,neighbors = self.knn_model_CBF.kneighbors([self.database.get_movie_features_on_id(iloc)],n_neighbors=n_reccomend+1)
-        recommeds = [movies.iloc[i]['title'] for i in neighbors[0] if i not in [iloc]]
-        return recommeds[:n_reccomend]
-
-
-    def recommend_on_history_kNN_CBF(self,n_reccomend = 5):
-        if self.ishist == False:
-            return print('No history found')
-        movies=self.database.get_movies()
+    def recommend_on_history_kNN_CBF(self, userId, n_reccomend=5):
+        knn_model_CBF = self.load_recommendation_model('knn_model_CBF.pkl')
+        self.hist = []
+        self.hist=self.database.get_movies_watched(userId)['movieId'].tolist()
+        movies = self.database.get_movies()
         history = np.array([list(self.database.get_movie_features_on_id(iloc)) for iloc in self.hist])
-        distance,neighbors = self.knn_model_CBF.kneighbors([np.average(history,axis=0)],n_neighbors=n_reccomend + len(self.hist))
-        recommeds = [movies.iloc[i]['title'] for i in neighbors[0] if i not in self.hist]
-        return recommeds[:n_reccomend]
+        distance, neighbors = knn_model_CBF.kneighbors([np.average(history, axis=0)],
+                                                            n_neighbors=n_reccomend + len(self.hist))
+        recommends = [movies.iloc[i]['title'] for i in neighbors[0] if i not in self.hist]
+        return recommends[:n_reccomend]
 
+    #SVD - Singular Value Decomposition - Collaborative Filtering
+    def recommend_on_user_SVD(self, user_id, n_recommendations=5):
+        self.hist = []
+        self.hist.append(self.database.get_movies_watched(user_id))
 
-#SVD - Singular Value Decomposition - Collaborative Filtering
-    def recommend_on_user_SVD(self,user_id,n_recommendations = 5):
+        SVD_model = self.load_recommendation_model('svd_model.pkl')
 
         all_movie_ids = self.database.get_all_movie_ids()
         history_movie_ids = self.hist
-        movies=self.database.get_movies()
-        predictions = [self.SVD_model.predict(user_id, movie_id) for movie_id in all_movie_ids if movie_id not in history_movie_ids]
+        movies = self.database.get_movies()
+        predictions = [SVD_model.predict(user_id, movie_id) for movie_id in all_movie_ids if
+                       movie_id not in history_movie_ids]
 
         predictions.sort(key=lambda x: x.est, reverse=True)
 
         top_predictions = predictions[:n_recommendations]
         recommended_movie_ids = [pred.iid for pred in top_predictions]
-        recommeds = [str(movies[movies['movieId'] == mid]['title'].values[0]) for mid in recommended_movie_ids]
+        recommends = [str(movies[movies['movieId'] == mid]['title'].values[0]) for mid in recommended_movie_ids]
 
-        return recommeds
-
-
-
-
-
-
-
+        return recommends
 

@@ -9,6 +9,7 @@ from neuralnetwork import Model_NN_CF, Model_NN_CBF
 app = Flask(__name__)
 CORS(app)
 
+
 def compute_sha256(input_string: str) -> str:
     sha256_hash = hashlib.sha256()
 
@@ -24,41 +25,44 @@ def hello_world():  # put application's code here
 @app.route('/recommend_on_movie_kNN_CF', methods=['GET'])
 def recommend_on_movie_kNN_CF():
     movie = request.args.get('movie')
-    n_reccomend = int(request.args.get('n_reccomend', 5))
+    n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
-    recommendations = reco.recommend_on_movie_kNN_CF(movie, n_reccomend)
+    recommendations = reco.recommend_on_movie_kNN_CF(movie, n_recommend)
     return jsonify({'data': recommendations})
 
 
 @app.route('/recommend_on_user_history_kNN_CF', methods=['GET'])
 def recommend_on_user_history_kNN_CF():
-    n_reccomend = int(request.args.get('n_reccomend', 5))
+    user_id = int(request.args.get('user_id'))
+    n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
-    recommendations = reco.recommend_on_user_history_kNN_CF(n_reccomend)
+    recommendations = reco.recommend_on_user_history_kNN_CF(user_id, n_recommend)
     return jsonify({'data': recommendations})
 
 
 @app.route('/recommend_on_movie_kNN_CBF', methods=['GET'])
 def recommend_on_movie_kNN_CBF():
     movie = request.args.get('movie')
-    n_reccomend = int(request.args.get('n_reccomend', 5))
+    n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
-    recommendations = reco.recommend_on_movie_kNN_CBF(movie, n_reccomend)
+    recommendations = reco.recommend_on_movie_kNN_CBF(movie, n_recommend)
     return jsonify({'data': recommendations})
 
 
 @app.route('/recommend_on_history_kNN_CBF', methods=['GET'])
 def recommend_on_history_kNN_CBF():
-    n_reccomend = int(request.args.get('n_reccomend', 5))
+    user_id = int(request.args.get('user_id'))
+    n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
-    recommendations = reco.recommend_on_history_kNN_CBF(n_reccomend)
+    recommendations = reco.recommend_on_history_kNN_CBF(user_id, n_recommend)
     return jsonify({'data': recommendations})
+
 @app.route('/reccomend_on_user_NN_CF', methods=['GET'])
 def reccomend_on_user_NN_CF():
     user_id = int(request.args.get('user_id'))
-    n_reccomend = int(request.args.get('n_reccomend', 5))
+    n_recommend = int(request.args.get('n_recommend', 5))
     my_model=Model_NN_CF()
-    recommendations=my_model.get_top_n_recommendations(user_id,n_reccomend)
+    recommendations=my_model.get_top_n_recommendations(user_id,n_recommend)
     rating_title_list = list(zip(recommendations['predicted_rating'], recommendations['title']))
     return jsonify({'data': rating_title_list})
 
@@ -284,11 +288,6 @@ def delete_rating(userId, movieId):
             return jsonify({'success': False, 'message': 'Rating not found'}), 404
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
-
-
-
-
 
 
 if __name__ == '__main__':

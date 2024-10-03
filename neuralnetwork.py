@@ -487,11 +487,11 @@ genres = [all_genres[2],all_genres[3]]
 
 
 # my_model=Model_NN_CBF()
-# #my_model.model_training()
+# my_model.model_training()
 #
 # print(my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, 10))
 #
-# #print(my_model.get_top_n_recommendations(550,10))
+# print(my_model.get_top_n_recommendations(550,10))
 
 
 
