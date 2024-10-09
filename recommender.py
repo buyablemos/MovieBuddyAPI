@@ -88,7 +88,8 @@ class Recommender:
     #SVD - Singular Value Decomposition - Collaborative Filtering
     def recommend_on_user_SVD(self, user_id, n_recommendations=5):
         self.hist = []
-        self.hist.append(self.database.get_movies_watched(user_id))
+        watched_movies = self.database.get_movies_watched(user_id)
+        self.hist = watched_movies['movieId'].tolist()
 
         SVD_model = self.load_recommendation_model('svd_model.pkl')
 

@@ -31,8 +31,8 @@ def recommend_on_movie_kNN_CF():
     return jsonify({'data': recommendations})
 
 
-@app.route('/recommend_on_user_history_kNN_CF', methods=['GET'])
-def recommend_on_user_history_kNN_CF():
+@app.route('/recommend_on_history_kNN_CF', methods=['GET'])
+def recommend_on_history_kNN_CF():
     user_id = int(request.args.get('user_id'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
@@ -68,13 +68,15 @@ def reccomend_on_user_NN_CF():
 
 @app.route('/reccomend_on_user_NN_CBF', methods=['GET'])
 def reccomend_on_user_NN_CBF():
-    gender = int(request.args.get('gender'))
-    age = int(request.args.get('age'))
-    occupation = int(request.args.get('occupation'))
-    zip_code = int(request.args.get('zip_code'))
-    n_reccomend = int(request.args.get('n_reccomend', 5))
+    user_id = int(request.args.get('user_id'))
+    user_details=db.Database().get_user_details(user_id)
+    gender=user_details['gender'].iloc[0]
+    age=user_details['age'].iloc[0]
+    occupation=user_details['occupation'].iloc[0]
+    zip_code=user_details['zip-code'].iloc[0]
+    n_recommend = int(request.args.get('n_recommend', 5))
     my_model=Model_NN_CBF()
-    recommendations=my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, n_reccomend)
+    recommendations=my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, n_recommend)
     rating_title_list = list(zip(recommendations['predicted_rating'], recommendations['title']))
     return jsonify({'data': rating_title_list})
 
@@ -82,9 +84,9 @@ def reccomend_on_user_NN_CBF():
 @app.route('/recommend_on_user_SVD', methods=['GET'])
 def recommend_on_user_SVD():
     user_id = int(request.args.get('user_id'))
-    n_reccomend = int(request.args.get('n_reccomend', 5))
+    n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
-    recommendations = reco.recommend_on_user_SVD(user_id, n_reccomend)
+    recommendations = reco.recommend_on_user_SVD(user_id, n_recommend)
     return jsonify({'data': recommendations})
 
 
@@ -233,6 +235,17 @@ def get_movies_unwatched(username):
         movies = db.get_movies()
         movies=movies[['movieId','title']]
         movies = movies.to_dict(orient='records')
+
+    return jsonify({'data': movies}), 200
+
+
+@app.route('/movies', methods=['GET'])
+def get_movies():
+    db = Database()
+
+    movies = db.get_movies()
+    movies = movies[['movieId','title']]
+    movies = movies.to_dict(orient='records')
 
     return jsonify({'data': movies}), 200
 

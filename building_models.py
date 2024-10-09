@@ -3,7 +3,6 @@ import joblib
 from sklearn.model_selection import train_test_split
 from surprise import Dataset, Reader, SVD, accuracy
 from surprise.model_selection import train_test_split
-import pandas as pd
 import db
 
 
@@ -33,12 +32,10 @@ def build_kNN_CBF(database):
 def build_SVD(database):
     ratings_df = database.get_ratings()
 
-
-    reader = Reader(line_format='user item rating timestamp', sep=',')
+    reader = Reader(line_format='user item rating timestamp', sep=',', rating_scale=(1, 5))
     data = Dataset.load_from_df(ratings_df[['userId', 'movieId', 'rating']], reader)
 
-
-    trainset, testset = train_test_split(data, test_size=0.25)
+    trainset, testset = train_test_split(data, test_size=0.2)
 
     model = SVD()
     model.fit(trainset)
@@ -56,3 +53,4 @@ def train_models():
     build_kNN_CF(database)
     build_kNN_CBF(database)
     build_SVD(database)
+

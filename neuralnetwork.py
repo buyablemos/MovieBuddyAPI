@@ -44,8 +44,6 @@ occupation_dict = {
     "unemployed": 19,
     "writer": 20
 }
-tf.keras.config.enable_unsafe_deserialization()
-
 
 #Content Base Filtering - podejscie
 
@@ -62,21 +60,20 @@ class Model_NN_CBF:
         users=database.get_users()
 
         # Przetwarzanie danych użytkowników
-        users['gender'] = users['gender'].map({'F': 0, 'M': 1})  # Zamiana płci na wartości numeryczne
+        users['gender'] = users['gender'].map({'F': 0, 'M': 1})  # Zamiana na wartości numeryczne
 
-        # Wybieranie odpowiednich kolumn (jeśli zawód jest liczbowy, pozostawiamy go)
+        # Wybieranie odpowiednich kolumn
         users = users[['userId', 'gender', 'age', 'occupation', 'zip-code']]
 
         movies['genres'] = movies['genres'].str.split('|')
         all_genres = set(g for genre_list in movies['genres'] for g in genre_list)
 
-        # Tworzenie słownika dla wszystkich gatunków
+        # Słownika dla wszystkich gatunków
         genre_dict = {genre: movies['genres'].apply(lambda x: 1 if genre in x else 0) for genre in all_genres}
 
-        # Tworzenie DataFrame z gatunkami
         genres_df = pd.DataFrame(genre_dict)
 
-        # Łączenie DataFrame gatunków z oryginalnym DataFrame filmów
+
         movies = pd.concat([movies, genres_df], axis=1)
 
         # Usunięcie oryginalnej kolumny 'genres'
@@ -89,9 +86,10 @@ class Model_NN_CBF:
 
 
     def model_training(self):
+        tf.keras.config.enable_unsafe_deserialization()
         data = self.get_data()
         features = data.drop(['rating', 'title', 'userId', 'movieId','timestamp'], axis=1)
-        demographic_features = features.iloc[:, :4]  # Załóżmy, że pierwsze 5 kolumn to cechy demograficzne
+        demographic_features = features.iloc[:, :4]  # Pierwsze 5 kolumn to cechy demograficzne
         genre_features = features.iloc[:, 4:]        # Pozostałe kolumny to gatunki filmowe
         target = data['rating']
 
@@ -106,10 +104,14 @@ class Model_NN_CBF:
 
         # Definicja modelu
         # Wejście dla cech demograficznych
+
+        print(X_train_genre)
+
         demo_input = Input(shape=(X_train_demo.shape[1],), name='demographic_input')
         demo_dense = Dense(128, activation='relu')(demo_input)
         demo_dense = BatchNormalization()(demo_dense)
         demo_dense = Dropout(0.3)(demo_dense)
+
 
         # Wejście dla gatunków filmowych
         genre_input = Input(shape=(X_train_genre.shape[1],), name='genre_input')
@@ -122,15 +124,19 @@ class Model_NN_CBF:
         dense = Dense(256, activation='relu')(concat)
         dense = BatchNormalization()(dense)
         dense = Dropout(0.3)(dense)
+
         dense = Dense(128, activation='relu')(dense)
         dense = BatchNormalization()(dense)
         dense = Dropout(0.3)(dense)
+
         dense = Dense(64, activation='relu')(dense)
         dense = BatchNormalization()(dense)
         dense = Dropout(0.3)(dense)
+
         dense = Dense(32, activation='relu')(dense)
         dense = BatchNormalization()(dense)
         dense = Dropout(0.3)(dense)
+
         output = Dense(1, activation='sigmoid')(dense)
         output = Lambda(lambda x: x*5)(output)
 
@@ -183,6 +189,7 @@ class Model_NN_CBF:
         print(target.head())
 
     def load_trained_model(self):
+        tf.keras.config.enable_unsafe_deserialization()
         if os.path.exists(self.model_path):
             model = tf.keras.models.load_model(self.model_path)
             print("Model loaded successfully.")
@@ -200,9 +207,6 @@ class Model_NN_CBF:
     def prepare_input_data(self, gender, age, occupation, zip_code, genres_list):
         # Przekształcenie płci na wartości numeryczne
         gender_numeric = 1 if gender == 'M' else 0
-
-        # Przygotowanie wektora one-hot dla gatunków
-        genre_vector_template = [1 if genre in all_genres else 0 for genre in all_genres]
 
         occupation_nr = occupation_dict.get(occupation, -1)  # Domyślnie -1, jeśli zawód nie istnieje
 
@@ -342,6 +346,7 @@ class Model_NN_CF:
         U = Flatten()(U)
         U = Dense(128, activation='relu', kernel_regularizer=l2(1e-6))(U)
         U = BatchNormalization()(U)
+        U = Dropout(0.3)(U)
 
         # Warstwa wejściowa dla filmów
         movie = Input(shape=(1,), name='movie_input')
@@ -349,6 +354,7 @@ class Model_NN_CF:
         M = Flatten()(M)
         M = Dense(128, activation='relu', kernel_regularizer=l2(1e-6))(M)
         M = BatchNormalization()(M)
+        M = Dropout(0.3)(M)
 
         # Połączenie warstw U i M
         x = concatenate([U, M])
@@ -364,6 +370,7 @@ class Model_NN_CF:
 
         # Wyjście
         final = Dense(1, activation='linear', kernel_regularizer=l2(1e-6))(x)
+
 
         # Definicja modelu
         model = tf.keras.models.Model(inputs=[user, movie], outputs=final)
@@ -390,14 +397,12 @@ class Model_NN_CF:
             callbacks=[checkpoint,early_stopping]
         )
 
-        # Get training and test loss histories
+        # Wykres strat
         training_loss = history.history['loss']
         test_loss = history.history['val_loss']
-
-        # Create count of the number of epochs
         epoch_count = range(1, len(training_loss) + 1)
 
-        # Visualize loss history
+        # Rysowanie ykresu strat
         plt.plot(epoch_count, training_loss, 'r--')
         plt.plot(epoch_count, test_loss, 'b-')
         plt.legend(['Training Loss', 'Test Loss'])

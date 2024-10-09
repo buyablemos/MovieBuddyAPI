@@ -21,11 +21,15 @@ def process_title(title):
     else:
         title = title.split(" (")[0]
 
-    # The umieszczamy na początku jesli jest
+    # Trzbea zamienic An, A, The bo API wyszukiwania OMDB sie buguje
     parts = title.split(", ")
     if len(parts) > 1:
         if 'The' in parts[1]:
             title = "The "+parts[0] + ' ' + parts[1].replace('The', '')
+        elif 'A' in parts[1]:
+            title = "The "+parts[0] + ' ' + parts[1].replace('A', '')
+        elif 'An' in parts[1]:
+            title = "The "+parts[0] + ' ' + parts[1].replace('An', '')
         else:
             title = parts[0] + ' ' + parts[1]
 
@@ -179,7 +183,7 @@ class Database:
 
     def get_movie_features_on_id(self, movie_id):
 
-        query = "SELECT genres FROM movies WHERE id = ?"
+        query = "SELECT genres FROM movies WHERE movieId = ?"
         movie_data = pd.read_sql_query(query, self.conn, params=(movie_id,))
 
 
@@ -268,3 +272,9 @@ class Database:
         self.cursor.execute(query, (userId, movieId))
         self.conn.commit()
         return self.cursor.rowcount > 0
+
+    def get_user_details(self,user_id):
+        query = "SELECT * FROM users WHERE userId = ?"
+        user_details = pd.read_sql_query(query, self.conn, params=(user_id,))
+        return user_details
+
