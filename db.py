@@ -1,15 +1,13 @@
 import datetime
 import re
-
 import pandas as pd
 import sqlite3
-
 from sklearn.feature_extraction.text import CountVectorizer
 
-def process_title(title):
 
+def process_title(title):
     aka_match = re.search(r'\(a\.k\.a\.\s*(.*?)\)', title)
-    alternative_title=None
+    alternative_title = None
     if aka_match:
         alternative_title = aka_match.group(1).strip()
 
@@ -25,15 +23,16 @@ def process_title(title):
     parts = title.split(", ")
     if len(parts) > 1:
         if 'The' in parts[1]:
-            title = "The "+parts[0] + ' ' + parts[1].replace('The', '')
+            title = "The " + parts[0] + ' ' + parts[1].replace('The', '')
         elif 'A' in parts[1]:
-            title = "The "+parts[0] + ' ' + parts[1].replace('A', '')
+            title = "The " + parts[0] + ' ' + parts[1].replace('A', '')
         elif 'An' in parts[1]:
-            title = "The "+parts[0] + ' ' + parts[1].replace('An', '')
+            title = "The " + parts[0] + ' ' + parts[1].replace('An', '')
         else:
             title = parts[0] + ' ' + parts[1]
 
-    return title+f" ({year})"
+    return title + f" ({year})"
+
 
 class Database:
     def __init__(self):
@@ -80,9 +79,9 @@ class Database:
         return self.cursor.fetchone()
 
     def create_table_from_data(self):
-        movies = pd.read_csv('MovieLensData/movies.csv',sep=';')
-        ratings = pd.read_csv('MovieLensData/ratings.csv',sep=';')
-        users = pd.read_csv('MovieLensData/users.csv',sep=';')
+        movies = pd.read_csv('MovieLensData/movies.csv', sep=';')
+        ratings = pd.read_csv('MovieLensData/ratings.csv', sep=';')
+        users = pd.read_csv('MovieLensData/users.csv', sep=';')
         movies.to_sql('movies', self.conn, if_exists='replace', index=False)
         ratings.to_sql('ratings', self.conn, if_exists='replace', index=False)
         users.to_sql('users', self.conn, if_exists='replace', index=False)
@@ -96,7 +95,6 @@ class Database:
         self.cursor.execute(query)
         self.create_table_from_data()
         self.conn.commit()
-
 
     def get_movie_id(self, movie_name):
         query = "SELECT movieId FROM movies WHERE title = ?"
@@ -121,8 +119,6 @@ class Database:
         ).fillna(0)
         return rating_pivot
 
-
-
     def get_movies(self):
         query = "SELECT * FROM movies"
         movies_df = pd.read_sql_query(query, self.conn)
@@ -131,17 +127,17 @@ class Database:
 
         return movies_df
 
-    def get_movies_watched(self,userId):
+    def get_movies_watched(self, userId):
         query = "SELECT movieId FROM ratings WHERE userId = ?"
         movies_df = pd.read_sql_query(query, self.conn, params=(userId,))
         return movies_df
 
-    def get_movies_unwatched(self,userId):
-        query="SELECT m.movieId FROM movies m LEFT JOIN ratings r ON m.movieId = r.movieId AND r.userId = ? WHERE r.movieId IS NULL"
+    def get_movies_unwatched(self, userId):
+        query = "SELECT m.movieId FROM movies m LEFT JOIN ratings r ON m.movieId = r.movieId AND r.userId = ? WHERE r.movieId IS NULL"
         movies_df = pd.read_sql_query(query, self.conn, params=(userId,))
         return movies_df
 
-    def get_ratings_info(self,userId):
+    def get_ratings_info(self, userId):
         query = """
             SELECT m.movieId, m.title, r.rating, r.timestamp
             FROM movies m 
@@ -152,8 +148,8 @@ class Database:
 
         return movies_df
 
-    def get_movie_titles_unwatched(self,userId):
-        query="SELECT m.movieId, m.title FROM movies m LEFT JOIN ratings r ON m.movieId = r.movieId AND r.userId = ? WHERE r.movieId IS NULL"
+    def get_movie_titles_unwatched(self, userId):
+        query = "SELECT m.movieId, m.title FROM movies m LEFT JOIN ratings r ON m.movieId = r.movieId AND r.userId = ? WHERE r.movieId IS NULL"
         movies_df = pd.read_sql_query(query, self.conn, params=(userId,))
         return movies_df
 
@@ -177,7 +173,7 @@ class Database:
         vectorizer = CountVectorizer(stop_words='english')
         movies = self.get_movies()
         genres = vectorizer.fit_transform(movies.genres).toarray()
-        contents = pd.DataFrame(genres,columns=vectorizer.get_feature_names_out())
+        contents = pd.DataFrame(genres, columns=vectorizer.get_feature_names_out())
 
         return contents
 
@@ -185,7 +181,6 @@ class Database:
 
         query = "SELECT genres FROM movies WHERE movieId = ?"
         movie_data = pd.read_sql_query(query, self.conn, params=(movie_id,))
-
 
         if movie_data.empty or 'genres' not in movie_data.columns:
             raise ValueError(f"No movie found with ID {movie_id} or 'genres' column is missing")
@@ -211,12 +206,13 @@ class Database:
 
     def get_registered_user_by_username(self, username):
         self.cursor.execute("SELECT * FROM registered_users WHERE username = ?", (username,))
-        user= self.cursor.fetchone()
+        user = self.cursor.fetchone()
         return user
 
     def get_user_by_id(self, user_id):
         self.cursor.execute("SELECT * FROM users WHERE userId = ?", (user_id,))
         return self.cursor.fetchone()
+
     def get_user_id_by_username(self, username):
         self.cursor.execute("SELECT userId FROM registered_users WHERE username = ?", (username,))
         return self.cursor.fetchone()
@@ -229,7 +225,6 @@ class Database:
         """, (gender, age, occupation, zipcode, user_id))
         return self.cursor.rowcount > 0
 
-
     def create_user(self, gender, age, occupation, zipcode):
 
         self.cursor.execute("SELECT userId FROM users ORDER BY userId DESC LIMIT 1")
@@ -238,7 +233,7 @@ class Database:
         self.cursor.execute("""
             INSERT INTO users (userId,gender, age, occupation, "zip-code")
             VALUES (?,?, ?, ?, ?)
-        """, (user_id,gender, age, occupation, zipcode))
+        """, (user_id, gender, age, occupation, zipcode))
         return user_id  # Zwróć ID nowo utworzonego użytkownika
 
     def update_registered_user_userId(self, username, user_id):
@@ -258,12 +253,13 @@ class Database:
         """
         cursor.execute(query, (email, username))
         return cursor.rowcount > 0
-    def add_rating(self,user_id: int, movie_id: int, rating: int):
-        timestamp=int(datetime.datetime.now().timestamp())
+
+    def add_rating(self, user_id: int, movie_id: int, rating: int):
+        timestamp = int(datetime.datetime.now().timestamp())
         self.cursor.execute("""
             INSERT INTO ratings (userId ,movieId , rating ,timestamp)
             VALUES (?, ?, ? , ?)
-        """, (user_id,movie_id, rating,timestamp))
+        """, (user_id, movie_id, rating, timestamp))
         self.conn.commit()
         return self.cursor.rowcount > 0
 
@@ -273,8 +269,21 @@ class Database:
         self.conn.commit()
         return self.cursor.rowcount > 0
 
-    def get_user_details(self,user_id):
+    def get_user_details(self, user_id):
         query = "SELECT * FROM users WHERE userId = ?"
         user_details = pd.read_sql_query(query, self.conn, params=(user_id,))
         return user_details
 
+    def check_user_details(self, username):
+        query = "SELECT * FROM registered_users WHERE username = ?"
+        user_details = pd.read_sql_query(query, self.conn, params=(username,))
+        if user_details['userId'].iloc[0] is None:
+            return False
+        else:
+            return True
+
+    def get_last_user_id(self):
+        query = "SELECT userId FROM users ORDER BY userId DESC LIMIT 1;"
+        self.cursor.execute(query)
+        userId = self.cursor.fetchone()[0]
+        return userId

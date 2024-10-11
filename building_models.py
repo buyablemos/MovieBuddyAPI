@@ -4,6 +4,7 @@ from sklearn.model_selection import train_test_split
 from surprise import Dataset, Reader, SVD, accuracy
 from surprise.model_selection import train_test_split
 import db
+from last_user_info import LastUserInfo
 
 
 def build_kNN_CF(database):
@@ -51,6 +52,10 @@ def build_SVD(database):
 def train_models():
     database = db.Database()
     build_kNN_CF(database)
+    LastUserInfo.save_last_trained_user("knn_cf")
     build_kNN_CBF(database)
+    LastUserInfo.save_last_trained_user("knn_cbf")
     build_SVD(database)
+    LastUserInfo.save_last_trained_user("svd")
+
 

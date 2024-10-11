@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Embedding, Flatten,concatenate,Concatenate,Lambda
 import numpy as np
 from tensorflow.keras.regularizers import l2
-
+from last_user_info import LastUserInfo
 
 import db
 
@@ -177,6 +177,7 @@ class Model_NN_CBF:
 
         # Zapis modelu
         model.save(self.model_path)
+        LastUserInfo.save_last_trained_user("nn_cbf")
 
     def print_features_for_model(self):
         data = self.get_data()
@@ -413,8 +414,8 @@ class Model_NN_CF:
         loss, mae = model.evaluate([X_test_user, X_test_movie], Y_test)
         print(f'Final test loss: {loss}, Final test MAE: {mae}')
 
-
         model.save(self.model_path)
+        LastUserInfo.save_last_trained_user("nn_cbf")
 
     def get_prediction(self, userId, movieId):
         input_data = [userId, movieId]
