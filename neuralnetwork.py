@@ -2,6 +2,7 @@ import heapq
 import os
 import time
 
+import keras
 import pandas as pd
 from keras import Input
 from keras.src.callbacks import ModelCheckpoint, EarlyStopping
@@ -10,12 +11,13 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
 import tensorflow as tf
 import matplotlib.pyplot as plt
-from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Embedding, Flatten,concatenate,Concatenate,Lambda
+from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Embedding, Flatten, concatenate, Concatenate, \
+    Lambda
 import numpy as np
 from tensorflow.keras.regularizers import l2
 from last_user_info import LastUserInfo
-
-import db
+from tensorflow.keras import backend as k
+from db import Database
 
 all_genres = ['Animation', 'Documentary', 'War', 'Action', 'Crime', 'Western', 'Mystery',
               'Adventure', 'Children\'s', 'Sci-Fi', 'Comedy', 'Fantasy', 'Horror',
@@ -45,6 +47,12 @@ occupation_dict = {
     "writer": 20
 }
 
+@keras.saving.register_keras_serializable()
+def rmse(y_true, y_pred):
+    y_true = k.cast(y_true, dtype='float32')
+    return k.sqrt(k.mean(k.square(y_pred - y_true)))
+
+
 #Content Base Filtering - podejscie
 
 class Model_NN_CBF:
@@ -54,10 +62,10 @@ class Model_NN_CBF:
         self.model = self.load_trained_model()
 
     def get_data(self):
-        database = db.Database()
-        ratings=database.get_ratings()
-        movies=database.get_movies()
-        users=database.get_users()
+        database = Database()
+        ratings = database.get_ratings()
+        movies = database.get_movies()
+        users = database.get_users()
 
         # Przetwarzanie danych użytkowników
         users['gender'] = users['gender'].map({'F': 0, 'M': 1})  # Zamiana na wartości numeryczne
@@ -73,7 +81,6 @@ class Model_NN_CBF:
 
         genres_df = pd.DataFrame(genre_dict)
 
-
         movies = pd.concat([movies, genres_df], axis=1)
 
         # Usunięcie oryginalnej kolumny 'genres'
@@ -83,14 +90,12 @@ class Model_NN_CBF:
         data = ratings.merge(users, on='userId').merge(movies, on='movieId')
         return data
 
-
-
     def model_training(self):
         tf.keras.config.enable_unsafe_deserialization()
         data = self.get_data()
-        features = data.drop(['rating', 'title', 'userId', 'movieId','timestamp'], axis=1)
+        features = data.drop(['rating', 'title', 'userId', 'movieId', 'timestamp'], axis=1)
         demographic_features = features.iloc[:, :4]  # Pierwsze 5 kolumn to cechy demograficzne
-        genre_features = features.iloc[:, 4:]        # Pozostałe kolumny to gatunki filmowe
+        genre_features = features.iloc[:, 4:]  # Pozostałe kolumny to gatunki filmowe
         target = data['rating']
 
         # Normalizacja cech demograficznych
@@ -111,7 +116,6 @@ class Model_NN_CBF:
         demo_dense = Dense(128, activation='relu')(demo_input)
         demo_dense = BatchNormalization()(demo_dense)
         demo_dense = Dropout(0.3)(demo_dense)
-
 
         # Wejście dla gatunków filmowych
         genre_input = Input(shape=(X_train_genre.shape[1],), name='genre_input')
@@ -138,13 +142,11 @@ class Model_NN_CBF:
         dense = Dropout(0.3)(dense)
 
         output = Dense(1, activation='sigmoid')(dense)
-        output = Lambda(lambda x: x*5)(output)
-
-
+        output = Lambda(lambda x: x * 5)(output)
 
         # Kompilacja modelu
         model = tf.keras.models.Model(inputs=[demo_input, genre_input], outputs=output)
-        model.compile(loss='mean_squared_error', optimizer='adam', metrics=['mae'])
+        model.compile(loss='mean_squared_error', optimizer='adam', metrics=[rmse])
 
         model.summary()
 
@@ -172,8 +174,8 @@ class Model_NN_CBF:
         plt.show()
 
         # Ewaluacja modelu
-        loss, mae = model.evaluate([X_test_demo, X_test_genre], Y_test)
-        print(f'Final test Loss: {loss}, Final test MAE: {mae}')
+        loss, rmse_value = model.evaluate([X_test_demo, X_test_genre], Y_test)
+        print(f'Final test Loss: {loss}, Final test RMSE: {rmse_value}')
 
         # Zapis modelu
         model.save(self.model_path)
@@ -204,7 +206,6 @@ class Model_NN_CBF:
             else:
                 raise FileNotFoundError(f"Model file '{self.model_path}' does not exist and can't create new one.")
 
-
     def prepare_input_data(self, gender, age, occupation, zip_code, genres_list):
         # Przekształcenie płci na wartości numeryczne
         gender_numeric = 1 if gender == 'M' else 0
@@ -229,8 +230,6 @@ class Model_NN_CBF:
 
         return np.array(input_features)
 
-
-
     def get_occupation_number(occupation, occupation_dict):
 
         if occupation in occupation_dict:
@@ -254,7 +253,7 @@ class Model_NN_CBF:
 
     def get_predictions_on_all_movies(self, gender, age, occupation, zip_code, n=10):
         # Inicjalizacja połączenia z bazą danych
-        database = db.Database()
+        database = Database()
         # Pobierz wszystkie filmy z bazy danych
         movies = database.get_movies()
 
@@ -279,6 +278,7 @@ class Model_NN_CBF:
         # Zwracanie najlepszych rekomendacji
         return top_recommendations.head(n).reset_index(drop=True)
 
+
 # Colaborative filtering
 
 class Model_NN_CF:
@@ -300,16 +300,13 @@ class Model_NN_CF:
             else:
                 raise FileNotFoundError(f"Model file '{self.model_path}' does not exist and can't create new one.")
 
-
     def get_data(self):
-        database = db.Database()
-        ratings=database.get_ratings()
-        movies=database.get_movies()
-        users=database.get_users()
-
+        database = Database()
+        ratings = database.get_ratings()
+        movies = database.get_movies()
+        users = database.get_users()
 
         users['gender'] = users['gender'].map({'F': 0, 'M': 1})  # Zamiana płci na wartości numeryczne
-
 
         users = users[['userId', 'gender', 'age', 'occupation', 'zip-code']]
 
@@ -335,17 +332,20 @@ class Model_NN_CF:
     def model_training(self):
 
         data = self.get_data()
-        n_users = data['userId'].max()+1
-        n_movies = data['movieId'].max()+1
-        n_dim = 100
+        n_users = data['userId'].max() + 1
+        n_movies = data['movieId'].max() + 1
+        n_dim = 50
 
-        print(n_users,n_movies)
+        print(n_users, n_movies)
 
         # Warstwa wejściowa dla użytkowników
         user = Input(shape=(1,), name='user_input')
         U = Embedding(n_users, n_dim, embeddings_regularizer=l2(1e-6))(user)
         U = Flatten()(U)
         U = Dense(128, activation='relu', kernel_regularizer=l2(1e-6))(U)
+        U = BatchNormalization()(U)
+        U = Dropout(0.3)(U)
+        U = Dense(256, activation='relu', kernel_regularizer=l2(1e-6))(U)
         U = BatchNormalization()(U)
         U = Dropout(0.3)(U)
 
@@ -356,9 +356,15 @@ class Model_NN_CF:
         M = Dense(128, activation='relu', kernel_regularizer=l2(1e-6))(M)
         M = BatchNormalization()(M)
         M = Dropout(0.3)(M)
+        M = Dense(256, activation='relu', kernel_regularizer=l2(1e-6))(M)
+        M = BatchNormalization()(M)
+        M = Dropout(0.3)(M)
 
         # Połączenie warstw U i M
         x = concatenate([U, M])
+        x = Dense(512, activation='relu', kernel_regularizer=l2(1e-6))(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
         x = Dense(256, activation='relu', kernel_regularizer=l2(1e-6))(x)
         x = BatchNormalization()(x)
         x = Dropout(0.3)(x)
@@ -368,34 +374,36 @@ class Model_NN_CF:
         x = Dense(64, activation='relu', kernel_regularizer=l2(1e-6))(x)
         x = BatchNormalization()(x)
         x = Dropout(0.3)(x)
+        x = Dense(32, activation='relu', kernel_regularizer=l2(1e-6))(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
+        x = Dense(16, activation='relu', kernel_regularizer=l2(1e-6))(x)
+        x = BatchNormalization()(x)
+        x = Dropout(0.3)(x)
 
         # Wyjście
         final = Dense(1, activation='linear', kernel_regularizer=l2(1e-6))(x)
 
-
         # Definicja modelu
         model = tf.keras.models.Model(inputs=[user, movie], outputs=final)
 
-
         model.compile(optimizer=Adam(0.0001),
                       loss='mean_squared_error',
-                      metrics=['mae'])
-
+                      metrics=[rmse])
 
         model.summary()
 
-
-
         checkpoint = ModelCheckpoint('best_model_CF.keras', monitor='val_loss', verbose=0, save_best_only=True)
-        early_stopping = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+        early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 
         X_train_user, X_test_user, X_train_movie, X_test_movie, Y_train, Y_test = train_test_split(
             data['userId'], data['movieId'], data['rating'], test_size=0.2, random_state=42
         )
-        history=model.fit(
+
+        history = model.fit(
             x=[X_train_user, X_train_movie], y=Y_train,
-            epochs=10, batch_size=128, validation_split=0.2,
-            callbacks=[checkpoint,early_stopping]
+            epochs=20, batch_size=64, validation_split=0.2,
+            callbacks=[checkpoint, early_stopping]
         )
 
         # Wykres strat
@@ -411,8 +419,8 @@ class Model_NN_CF:
         plt.ylabel('Loss')
         plt.show()
 
-        loss, mae = model.evaluate([X_test_user, X_test_movie], Y_test)
-        print(f'Final test loss: {loss}, Final test MAE: {mae}')
+        loss, rmse_value = model.evaluate([X_test_user, X_test_movie], Y_test)
+        print(f'Final test loss: {loss}, Final test RMSE: {rmse_value}')
 
         model.save(self.model_path)
         LastUserInfo.save_last_trained_user("nn_cbf")
@@ -426,10 +434,10 @@ class Model_NN_CF:
         except FileNotFoundError as e:
             print(e)
 
-    def get_top_n_recommendations(self,user_id, top_n=10):
-        database=db.Database()
-        user_watched_movies=database.get_movies_unwatched(user_id)
-        all_movie_ids=database.get_all_movie_ids()
+    def get_top_n_recommendations(self, user_id, top_n=10):
+        database = Database()
+        user_watched_movies = database.get_movies_unwatched(user_id)
+        all_movie_ids = database.get_all_movie_ids()
 
         movies_to_predict = [movie_id for movie_id in all_movie_ids if movie_id not in user_watched_movies]
 
@@ -438,14 +446,13 @@ class Model_NN_CF:
 
         predictions = self.model.predict([user_input, movie_input])
 
-        movies=database.get_movies()
-        movies_to_predict=pd.DataFrame({'movieId': movies_to_predict})
-        movies_to_predict=movies_to_predict.merge(movies,on='movieId')
-
+        movies = database.get_movies()
+        movies_to_predict = pd.DataFrame({'movieId': movies_to_predict})
+        movies_to_predict = movies_to_predict.merge(movies, on='movieId')
 
         predictions_df = pd.DataFrame({
             'movieId': movies_to_predict['movieId'],
-            'title':  movies_to_predict['title'],
+            'title': movies_to_predict['title'],
             'predicted_rating': predictions.flatten()  # Flatten to uzyskać płaską tablicę
         })
 
@@ -454,43 +461,35 @@ class Model_NN_CF:
         return top_recommendations.head(top_n).reset_index(drop=True)
 
 
-
-
 gender = 'F'
 age = 0
 occupation = "other or not specified"
 zip_code = 0
 genres = []
 
-
 gender = 'M'
 age = 45
 occupation = "farmer"
 zip_code = 0
-genres = [all_genres[1],all_genres[9],all_genres[7]]
-
+genres = [all_genres[1], all_genres[9], all_genres[7]]
 
 gender = 'M'
 age = 20
 occupation = "farmer"
 zip_code = 55330
-genres = [all_genres[2],all_genres[3]]
-
-
+genres = [all_genres[2], all_genres[3]]
 
 gender = 'M'
 age = 56
 occupation = "retired"
 zip_code = 11002
-genres = ['Comedy','Romance']
-
+genres = ['Comedy', 'Romance']
 
 gender = 'M'
 age = 20
 occupation = "retired"
 zip_code = 55330
-genres = [all_genres[2],all_genres[3]]
-
+genres = [all_genres[2], all_genres[3]]
 
 # my_model=Model_NN_CBF()
 # my_model.model_training()
@@ -498,10 +497,7 @@ genres = [all_genres[2],all_genres[3]]
 # print(my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, 10))
 #
 # print(my_model.get_top_n_recommendations(550,10))
-
-
-
-
-
-
-
+#
+#
+# my_model = Model_NN_CF()
+# my_model.model_training()

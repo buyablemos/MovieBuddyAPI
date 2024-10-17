@@ -1,8 +1,76 @@
+import ast
 import datetime
 import re
 import pandas as pd
 import sqlite3
+import json
+from nltk import SnowballStemmer
 from sklearn.feature_extraction.text import CountVectorizer
+from ast import literal_eval
+import numpy as np
+
+
+def get_director(x):
+    for i in x:
+        if i['job'] == 'Director':
+            return i['name']
+    return np.nan
+
+
+def read_and_adjust_metadata():
+    md = pd.read_csv('./Metadata/movies_metadata.csv')
+    credits = pd.read_csv('./Metadata/credits.csv')
+    keywords = pd.read_csv('./Metadata/keywords.csv')
+
+    keywords['id'] = keywords['id'].astype('int')
+    credits['id'] = credits['id'].astype('int')
+    md = md.drop([19730, 29503, 35587])
+    md['id'] = md['id'].astype('int')
+
+    md = md.merge(credits, on='id')
+    md = md.merge(keywords, on='id')
+
+    md['cast'] = md['cast'].apply(literal_eval)
+    md['crew'] = md['crew'].apply(literal_eval)
+    md['keywords'] = md['keywords'].apply(literal_eval)
+    md['cast_size'] = md['cast'].apply(lambda x: len(x))
+    md['crew_size'] = md['crew'].apply(lambda x: len(x))
+
+    md['director'] = md['crew'].apply(get_director)
+    md['cast'] = md['cast'].apply(lambda x: [i['name'] for i in x] if isinstance(x, list) else [])
+    md['cast'] = md['cast'].apply(lambda x: x[:3] if len(
+        x) >= 3 else x)  #Mention Director 3 times to give it more weight relative to the entire cast
+    md['keywords'] = md['keywords'].apply(lambda x: [i['name'] for i in x] if isinstance(x, list) else [])
+    md['cast'] = md['cast'].apply(lambda x: [str.lower(i.replace(" ", "")) for i in x])
+    md['director'] = md['director'].astype('str').apply(lambda x: str.lower(x.replace(" ", "")))
+    md['director'] = md['director'].apply(lambda x: [x, x, x])
+
+    s = md.apply(lambda x: pd.Series(x['keywords']), axis=1).stack().reset_index(level=1, drop=True)
+    s.name = 'keyword'
+    s = s.value_counts()
+    s = s[s > 1]
+
+    def filter_keywords(x):
+        words = []
+        for i in x:
+            if i in s:
+                words.append(i)
+        return words
+
+    stemmer = SnowballStemmer('english')
+    md['keywords'] = md['keywords'].apply(filter_keywords)
+    md['keywords'] = md['keywords'].apply(lambda x: [stemmer.stem(i) for i in x])
+    md['keywords'] = md['keywords'].apply(lambda x: [str.lower(i.replace(" ", "")) for i in x])
+
+    # Konwersja kolumn zawierających listy/słowniki na JSON strings
+    md['genres'] = md['genres'].apply(lambda x: json.dumps(x) if pd.notnull(x) else None)
+    md['production_companies'] = md['production_companies'].apply(lambda x: json.dumps(x) if pd.notnull(x) else None)
+    md['cast'] = md['cast'].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else None)
+    md['crew'] = md['crew'].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else None)
+    md['keywords'] = md['keywords'].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else None)
+    md['director'] = md['director'].apply(lambda x: json.dumps(x) if isinstance(x, (list, dict)) else None)
+
+    return md
 
 
 def process_title(title):
@@ -19,15 +87,14 @@ def process_title(title):
     else:
         title = title.split(" (")[0]
 
-    # Trzbea zamienic An, A, The bo API wyszukiwania OMDB sie buguje
     parts = title.split(", ")
     if len(parts) > 1:
         if 'The' in parts[1]:
             title = "The " + parts[0] + ' ' + parts[1].replace('The', '')
         elif 'A' in parts[1]:
-            title = "The " + parts[0] + ' ' + parts[1].replace('A', '')
+            title = "A " + parts[0] + ' ' + parts[1].replace('A', '')
         elif 'An' in parts[1]:
-            title = "The " + parts[0] + ' ' + parts[1].replace('An', '')
+            title = "An " + parts[0] + ' ' + parts[1].replace('An', '')
         else:
             title = parts[0] + ' ' + parts[1]
 
@@ -85,6 +152,9 @@ class Database:
         movies.to_sql('movies', self.conn, if_exists='replace', index=False)
         ratings.to_sql('ratings', self.conn, if_exists='replace', index=False)
         users.to_sql('users', self.conn, if_exists='replace', index=False)
+
+        md = read_and_adjust_metadata()
+        md.to_sql('metadata_movies', self.conn, if_exists='replace', index=False)
 
     def refresh_data(self):
         query = "DROP TABLE IF EXISTS movies"
@@ -157,6 +227,20 @@ class Database:
         query = "SELECT * FROM users"
         users_df = pd.read_sql_query(query, self.conn)
         return users_df
+
+    def get_metadata_movies(self):
+        query = "SELECT * FROM metadata_movies"
+        df = pd.read_sql_query(query, self.conn)
+        md = df
+        md['cast'] = md['cast'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else None)
+        md['keywords'] = md['keywords'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else None)
+        md['director'] = md['director'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else None)
+        md['genres'] = md['genres'].apply(lambda x: json.loads(x) if pd.notnull(x) else None)
+        md['genres'] = md['genres'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else None)
+        md['genres'] = md['genres'].apply(lambda x: [genre['name'] for genre in x] if isinstance(x, list) else None)
+        md['soup'] = md['keywords'] + md['cast'] + md['director'] + md['genres']
+        md['soup'] = md['soup'].apply(lambda x: ' '.join(x))
+        return md
 
     def get_ratings(self):
         query = "SELECT * FROM ratings"
@@ -287,3 +371,5 @@ class Database:
         self.cursor.execute(query)
         userId = self.cursor.fetchone()[0]
         return userId
+
+

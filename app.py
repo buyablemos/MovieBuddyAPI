@@ -6,6 +6,7 @@ import hashlib
 from db import Database
 from neuralnetwork import Model_NN_CF, Model_NN_CBF
 from last_user_info import LastUserInfo
+from metadata_reccommender import MetadataRecommender
 
 app = Flask(__name__)
 CORS(app)
@@ -26,10 +27,10 @@ def hello_world():  # put application's code here
 
 @app.route('/recommend_on_movie_kNN_CF', methods=['GET'])
 def recommend_on_movie_kNN_CF():
-    movie = request.args.get('movie')
+    movieId = int(request.args.get('movieId'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
-    recommendations = reco.recommend_on_movie_kNN_CF(movie, n_recommend)
+    recommendations = reco.recommend_on_movie_kNN_CF(movieId, n_recommend)
     return jsonify({'data': recommendations})
 
 
@@ -44,10 +45,27 @@ def recommend_on_history_kNN_CF():
 
 @app.route('/recommend_on_movie_kNN_CBF', methods=['GET'])
 def recommend_on_movie_kNN_CBF():
-    movie = request.args.get('movie')
+    movieId = int(request.args.get('movieId'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
-    recommendations = reco.recommend_on_movie_kNN_CBF(movie, n_recommend)
+    recommendations = reco.recommend_on_movie_kNN_CBF(movieId, n_recommend)
+    return jsonify({'data': recommendations})
+
+
+@app.route('/recommend_on_movie_metadata', methods=['GET'])
+def recommend_on_movie_metadata():
+    title = request.args.get('title')
+    n_recommend = int(request.args.get('n_recommend', 5))
+    reco = MetadataRecommender()
+    recommendations = reco.get_most_similar_movies(title, n_recommend)
+    return jsonify({'data': recommendations})
+
+@app.route('/recommend_on_movie_metadata_improved', methods=['GET'])
+def recommend_on_movie_metadata_improved():
+    title = request.args.get('title')
+    n_recommend = int(request.args.get('n_recommend', 5))
+    reco = MetadataRecommender()
+    recommendations = reco.improved_recommendations(title, n_recommend)
     return jsonify({'data': recommendations})
 
 
@@ -248,6 +266,17 @@ def get_movies():
 
     movies = db.get_movies()
     movies = movies[['movieId', 'title']]
+    movies = movies.to_dict(orient='records')
+
+    return jsonify({'data': movies}), 200
+
+
+@app.route('/metadata_movies', methods=['GET'])
+def get_metadata_movies():
+    db = Database()
+
+    movies = db.get_metadata_movies()
+    movies = movies[['id', 'title']]
     movies = movies.to_dict(orient='records')
 
     return jsonify({'data': movies}), 200

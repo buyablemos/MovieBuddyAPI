@@ -38,9 +38,8 @@ class Recommender:
 
     #Collaborative Filtering
 
-    def recommend_on_movie_kNN_CF(self, movie, n_reccomend=5):
+    def recommend_on_movie_kNN_CF(self, movieId, n_reccomend=5):
         knn_model_CF = self.load_recommendation_model('knn_model_CF.pkl')
-        movieId = self.database.get_movie_id(movie)
         rating_pivot = self.database.get_rating_pivot()
         movies = self.database.get_movies()
         distance, neighbors = knn_model_CF.kneighbors([rating_pivot.loc[movieId]], n_neighbors=n_reccomend + 1)
@@ -65,13 +64,18 @@ class Recommender:
 
     #Content Base Filtering
 
-    def recommend_on_movie_kNN_CBF(self, movie, n_reccomend=5):
+    def recommend_on_movie_kNN_CBF(self, movieId, n_reccomend=5):
         knn_model_CBF = self.load_recommendation_model('knn_model_CBF.pkl')
         movies = self.database.get_movies()
-        movieId = self.database.get_movie_id(movie)
         distance, neighbors = knn_model_CBF.kneighbors([self.database.get_movie_features_on_id(movieId)],
                                                             n_neighbors=n_reccomend + 1)
-        recommends = [movies.iloc[i]['title'] for i in neighbors[0] if i not in [movieId]]
+        print(neighbors)
+        recommends = []
+        for i in neighbors[0]:
+
+            neighbor_movie_id = movies.iloc[i]['movieId']
+            if neighbor_movie_id != movieId:
+                recommends.append(movies.iloc[i]['title'])
         return recommends[:n_reccomend]
 
     def recommend_on_history_kNN_CBF(self, userId, n_reccomend=5):
