@@ -1,5 +1,5 @@
 import json
-from db import Database
+from PythonFiles.db import Database
 
 
 class LastUserInfo:
@@ -7,7 +7,7 @@ class LastUserInfo:
     def save_last_trained_user(model_name):
         db = Database()
         user_id = db.get_last_user_id()
-        filename = 'last_trained_user.json'
+        filename = '../last_trained_user.json'
 
         try:
             try:
@@ -30,7 +30,7 @@ class LastUserInfo:
 
     @staticmethod
     def read_last_trained_user(model_name):
-        filename = 'last_trained_user.json'
+        filename = '../last_trained_user.json'
         try:
             with open(filename, 'r') as file:
                 data = json.load(file)

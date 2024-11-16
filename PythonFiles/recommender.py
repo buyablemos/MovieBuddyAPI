@@ -2,8 +2,8 @@ import os
 
 import numpy as np
 import joblib
-import db
-import building_models as bm
+from PythonFiles import db, building_models as bm
+
 
 class Recommender:
 
@@ -39,7 +39,7 @@ class Recommender:
     #Collaborative Filtering
 
     def recommend_on_movie_kNN_CF(self, movieId, n_reccomend=5):
-        knn_model_CF = self.load_recommendation_model('knn_model_CF.pkl')
+        knn_model_CF = self.load_recommendation_model('../knn_model_CF.pkl')
         rating_pivot = self.database.get_rating_pivot()
         movies = self.database.get_movies()
         distance, neighbors = knn_model_CF.kneighbors([rating_pivot.loc[movieId]], n_neighbors=n_reccomend + 1)
@@ -49,7 +49,7 @@ class Recommender:
         return recommends[:n_reccomend]
 
     def recommend_on_user_history_kNN_CF(self, userId, n_reccomend=5):
-        knn_model_CF = self.load_recommendation_model('knn_model_CF.pkl')
+        knn_model_CF = self.load_recommendation_model('../knn_model_CF.pkl')
         self.hist = []
         self.hist=self.database.get_movies_watched(userId)['movieId'].tolist()
         rating_pivot = self.database.get_rating_pivot()
@@ -65,11 +65,10 @@ class Recommender:
     #Content Base Filtering
 
     def recommend_on_movie_kNN_CBF(self, movieId, n_reccomend=5):
-        knn_model_CBF = self.load_recommendation_model('knn_model_CBF.pkl')
+        knn_model_CBF = self.load_recommendation_model('../knn_model_CBF.pkl')
         movies = self.database.get_movies()
         distance, neighbors = knn_model_CBF.kneighbors([self.database.get_movie_features_on_id(movieId)],
                                                             n_neighbors=n_reccomend + 1)
-        print(neighbors)
         recommends = []
         for i in neighbors[0]:
 
@@ -79,7 +78,7 @@ class Recommender:
         return recommends[:n_reccomend]
 
     def recommend_on_history_kNN_CBF(self, userId, n_reccomend=5):
-        knn_model_CBF = self.load_recommendation_model('knn_model_CBF.pkl')
+        knn_model_CBF = self.load_recommendation_model('../knn_model_CBF.pkl')
         self.hist = []
         self.hist=self.database.get_movies_watched(userId)['movieId'].tolist()
         movies = self.database.get_movies()
@@ -95,7 +94,7 @@ class Recommender:
         watched_movies = self.database.get_movies_watched(user_id)
         self.hist = watched_movies['movieId'].tolist()
 
-        SVD_model = self.load_recommendation_model('svd_model.pkl')
+        SVD_model = self.load_recommendation_model('../svd_model.pkl')
 
         all_movie_ids = self.database.get_all_movie_ids()
         history_movie_ids = self.hist
@@ -107,7 +106,9 @@ class Recommender:
 
         top_predictions = predictions[:n_recommendations]
         recommended_movie_ids = [pred.iid for pred in top_predictions]
+        recommended_movies_est = [pred.est for pred in top_predictions]
         recommends = [str(movies[movies['movieId'] == mid]['title'].values[0]) for mid in recommended_movie_ids]
+        recommends = zip(recommended_movies_est, recommends)
 
         return recommends
 

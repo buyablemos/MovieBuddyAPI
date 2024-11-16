@@ -3,7 +3,7 @@ import joblib
 from sklearn.model_selection import train_test_split
 from surprise import Dataset, Reader, SVD, accuracy
 from surprise.model_selection import train_test_split
-import db
+from PythonFiles import db
 from last_user_info import LastUserInfo
 
 
@@ -16,7 +16,7 @@ def build_kNN_CF(database):
     nn_algo = NearestNeighbors(metric='cosine')
     nn_algo.fit(rating_pivot)
 
-    joblib.dump(nn_algo, 'knn_model_CF.pkl')
+    joblib.dump(nn_algo, '../knn_model_CF.pkl')
 
 def build_kNN_CBF(database):
 
@@ -27,7 +27,7 @@ def build_kNN_CBF(database):
     nn_algo = NearestNeighbors(metric='cosine')
     nn_algo.fit(contents)
 
-    joblib.dump(nn_algo, 'knn_model_CBF.pkl')
+    joblib.dump(nn_algo, '../knn_model_CBF.pkl')
 
 
 def build_SVD(database):
@@ -46,7 +46,7 @@ def build_SVD(database):
     rmse = accuracy.rmse(predictions)
     print(f"RMSE: {rmse}")
 
-    joblib.dump(model, 'svd_model.pkl')
+    joblib.dump(model, '../svd_model.pkl')
 
 
 def train_models():
@@ -57,5 +57,4 @@ def train_models():
     LastUserInfo.save_last_trained_user("knn_cbf")
     build_SVD(database)
     LastUserInfo.save_last_trained_user("svd")
-
 

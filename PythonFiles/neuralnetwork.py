@@ -1,23 +1,21 @@
-import heapq
 import os
-import time
 
 import keras
+import matplotlib.pyplot as plt
+import numpy as np
 import pandas as pd
+import tensorflow as tf
 from keras import Input
 from keras.src.callbacks import ModelCheckpoint, EarlyStopping
 from keras.src.optimizers import Adam
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
-import tensorflow as tf
-import matplotlib.pyplot as plt
+from tensorflow.keras import backend as k
 from tensorflow.keras.layers import Dense, Dropout, BatchNormalization, Embedding, Flatten, concatenate, Concatenate, \
     Lambda
-import numpy as np
 from tensorflow.keras.regularizers import l2
-from last_user_info import LastUserInfo
-from tensorflow.keras import backend as k
-from db import Database
+
+from PythonFiles.db import Database
+from PythonFiles.last_user_info import LastUserInfo
 
 all_genres = ['Animation', 'Documentary', 'War', 'Action', 'Crime', 'Western', 'Mystery',
               'Adventure', 'Children\'s', 'Sci-Fi', 'Comedy', 'Fantasy', 'Horror',
@@ -58,7 +56,7 @@ def rmse(y_true, y_pred):
 class Model_NN_CBF:
 
     def __init__(self):
-        self.model_path = 'model_NN_CBF.keras'
+        self.model_path = '../model_NN_CBF.keras'
         self.model = self.load_trained_model()
 
     def get_data(self):
@@ -152,7 +150,7 @@ class Model_NN_CBF:
 
         # Ustalanie callbacks
         early_stopping = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
-        checkpoint = ModelCheckpoint('best_model_CBF.keras', monitor='val_loss', save_best_only=True)
+        checkpoint = ModelCheckpoint('../best_model_CBF.keras', monitor='val_loss', save_best_only=True)
 
         # Trenowanie modelu
         history = model.fit(
@@ -283,7 +281,7 @@ class Model_NN_CBF:
 
 class Model_NN_CF:
     def __init__(self):
-        self.model_path = 'model_NN_CF.keras'
+        self.model_path = '../model_NN_CF.keras'
         self.model = self.load_trained_model()
 
     def load_trained_model(self):
@@ -393,7 +391,7 @@ class Model_NN_CF:
 
         model.summary()
 
-        checkpoint = ModelCheckpoint('best_model_CF.keras', monitor='val_loss', verbose=0, save_best_only=True)
+        checkpoint = ModelCheckpoint('../best_model_CF.keras', monitor='val_loss', verbose=0, save_best_only=True)
         early_stopping = EarlyStopping(monitor='val_loss', patience=3, restore_best_weights=True)
 
         X_train_user, X_test_user, X_train_movie, X_test_movie, Y_train, Y_test = train_test_split(
@@ -423,7 +421,7 @@ class Model_NN_CF:
         print(f'Final test loss: {loss}, Final test RMSE: {rmse_value}')
 
         model.save(self.model_path)
-        LastUserInfo.save_last_trained_user("nn_cbf")
+        LastUserInfo.save_last_trained_user("nn_cf")
 
     def get_prediction(self, userId, movieId):
         input_data = [userId, movieId]

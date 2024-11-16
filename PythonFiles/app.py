@@ -1,15 +1,18 @@
+import hashlib
+
 from flask import Flask, request, jsonify
 from flask_cors import CORS
+
 import db
 import recommender
-import hashlib
 from db import Database
-from neuralnetwork import Model_NN_CF, Model_NN_CBF
 from last_user_info import LastUserInfo
 from metadata_reccommender import MetadataRecommender
+from neuralnetwork import Model_NN_CF, Model_NN_CBF
 
 app = Flask(__name__)
 CORS(app)
+#Talisman(app)
 
 
 def compute_sha256(input_string: str) -> str:
@@ -109,6 +112,7 @@ def recommend_on_user_SVD():
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_user_SVD(user_id, n_recommend)
+    recommendations=list(recommendations)
     return jsonify({'data': recommendations})
 
 
@@ -247,7 +251,7 @@ def update_user(username):
 @app.route('/users/<username>/movies-unwatched', methods=['GET'])
 def get_movies_unwatched(username):
     db = Database()
-    user_id = db.get_user_id_by_username(username)[0]
+    user_id = db.get_user_id_by_username(username)
 
     if user_id:
         movies = db.get_movie_titles_unwatched(user_id)
@@ -286,10 +290,10 @@ def get_metadata_movies():
 def get_user_id_by_username(username):
     db = Database()
     user_id = db.get_user_id_by_username(username)
-    if user_id:
+    if user_id is not None:
         return jsonify({'userid': user_id}), 200
     else:
-        return jsonify({'userid': None}), 200
+        return jsonify({'userid': None}), 405
 
 
 @app.route('/add-rating', methods=['POST'])
@@ -297,7 +301,7 @@ def add_user_rating():
     db = Database()
     data = request.get_json()
 
-    userid = data['userId'][0]
+    userid = data['userId']
     movieid = data['movieId']
     rating = data['rating']
 
@@ -335,7 +339,7 @@ def check_user_details(username):
 @app.route('/check_user_history/<username>', methods=['GET'])
 def check_user_history(username):
     db = Database()
-    userId = db.get_user_id_by_username(username)[0]
+    userId = db.get_user_id_by_username(username)
     if userId is None:
         return jsonify({'success': False, 'error': 'User history not checked'}), 404
 
@@ -351,7 +355,7 @@ def check_user_access_model(username, model):
     db = Database()
 
     lastuserId = LastUserInfo.read_last_trained_user(model)
-    userId = db.get_user_id_by_username(username)[0]
+    userId = db.get_user_id_by_username(username)
 
     if userId is None:
         return jsonify({'success': False, 'error': 'User access not checked - problem with database - > UserId based '
@@ -381,4 +385,4 @@ def delete_rating(userId, movieId):
 
 
 if __name__ == '__main__':
-    app.run()
+    app.run(host='0.0.0.0', port=2115)
