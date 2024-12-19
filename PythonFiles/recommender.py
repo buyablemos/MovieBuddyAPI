@@ -36,7 +36,7 @@ class Recommender:
         self.hist = []
         self.database = db.Database()
 
-    #Collaborative Filtering
+    # Collaborative Filtering
 
     def recommend_on_movie_kNN_CF(self, movieId, n_reccomend=5):
         knn_model_CF = self.load_recommendation_model('../knn_model_CF.pkl')
@@ -45,30 +45,31 @@ class Recommender:
         distance, neighbors = knn_model_CF.kneighbors([rating_pivot.loc[movieId]], n_neighbors=n_reccomend + 1)
         movieids = [rating_pivot.iloc[i].name for i in neighbors[0]]
         recommends = [str(movies[movies['movieId'] == mid]['title']).split('\n')[0].split('  ')[-1] for mid in movieids
-                     if mid not in [movieId]]
+                      if mid not in [movieId]]
         return recommends[:n_reccomend]
 
     def recommend_on_user_history_kNN_CF(self, userId, n_reccomend=5):
         knn_model_CF = self.load_recommendation_model('../knn_model_CF.pkl')
         self.hist = []
-        self.hist=self.database.get_movies_watched(userId)['movieId'].tolist()
+        self.hist = self.database.get_movies_watched(userId)['movieId'].tolist()
         rating_pivot = self.database.get_rating_pivot()
         movies = self.database.get_movies()
         history = np.array([list(rating_pivot.loc[mid]) for mid in self.hist])
         distance, neighbors = knn_model_CF.kneighbors([np.average(history, axis=0)],
-                                                           n_neighbors=n_reccomend + len(self.hist))
+                                                      n_neighbors=n_reccomend + len(self.hist))
         movieids = [rating_pivot.iloc[i].name for i in neighbors[0]]
         recommends = [str(movies[movies['movieId'] == mid]['title']).split('\n')[0].split('  ')[-1] for mid in movieids
-                     if mid not in self.hist]
+                      if mid not in self.hist]
         return recommends[:n_reccomend]
 
-    #Content Base Filtering
+    # Content Base Filtering
 
     def recommend_on_movie_kNN_CBF(self, movieId, n_reccomend=5):
-        knn_model_CBF = self.load_recommendation_model('/Users/dawid/PycharmProjects/movierecomendationAPI/knn_model_CBF.pkl')
+        knn_model_CBF = self.load_recommendation_model(
+            '/Users/dawid/PycharmProjects/movierecomendationAPI/knn_model_CBF.pkl')
         movies = self.database.get_movies()
         distance, neighbors = knn_model_CBF.kneighbors([self.database.get_movie_features_on_id(movieId)],
-                                                            n_neighbors=n_reccomend + 1)
+                                                       n_neighbors=n_reccomend + 1)
         recommends = []
         for i in neighbors[0]:
 
@@ -78,17 +79,18 @@ class Recommender:
         return recommends[:n_reccomend]
 
     def recommend_on_history_kNN_CBF(self, userId, n_reccomend=5):
-        knn_model_CBF = self.load_recommendation_model('/Users/dawid/PycharmProjects/movierecomendationAPI/knn_model_CBF.pkl')
+        knn_model_CBF = self.load_recommendation_model(
+            '/Users/dawid/PycharmProjects/movierecomendationAPI/knn_model_CBF.pkl')
         self.hist = []
-        self.hist=self.database.get_movies_watched(userId)['movieId'].tolist()
+        self.hist = self.database.get_movies_watched(userId)['movieId'].tolist()
         movies = self.database.get_movies()
         history = np.array([list(self.database.get_movie_features_on_id(iloc)) for iloc in self.hist])
         distance, neighbors = knn_model_CBF.kneighbors([np.average(history, axis=0)],
-                                                            n_neighbors=n_reccomend + len(self.hist))
+                                                       n_neighbors=n_reccomend + len(self.hist))
         recommends = [movies.iloc[i]['title'] for i in neighbors[0] if i not in self.hist]
         return recommends[:n_reccomend]
 
-    #SVD - Singular Value Decomposition - Collaborative Filtering
+    # SVD - Singular Value Decomposition - Collaborative Filtering
     def recommend_on_user_SVD(self, user_id, n_recommendations=5):
         self.hist = []
         watched_movies = self.database.get_movies_watched(user_id)
@@ -111,4 +113,3 @@ class Recommender:
         recommends = zip(recommended_movies_est, recommends)
 
         return recommends
-

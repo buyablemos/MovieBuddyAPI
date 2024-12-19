@@ -41,7 +41,7 @@ def read_and_adjust_metadata():
     md['director'] = md['crew'].apply(get_director)
     md['cast'] = md['cast'].apply(lambda x: [i['name'] for i in x] if isinstance(x, list) else [])
     md['cast'] = md['cast'].apply(lambda x: x[:3] if len(
-        x) >= 3 else x)  #Mention Director 3 times to give it more weight relative to the entire cast
+        x) >= 3 else x)  # Mention Director 3 times to give it more weight relative to the entire cast
     md['keywords'] = md['keywords'].apply(lambda x: [i['name'] for i in x] if isinstance(x, list) else [])
     md['cast'] = md['cast'].apply(lambda x: [str.lower(i.replace(" ", "")) for i in x])
     md['director'] = md['director'].astype('str').apply(lambda x: str.lower(x.replace(" ", "")))
@@ -424,7 +424,7 @@ class Database:
             print(f"Error deleting user by username: {e}")
             self.conn.rollback()
 
-    def delete_user_by_email(self, email:str):
+    def delete_user_by_email(self, email: str):
         """Usuwa użytkownika z bazy danych na podstawie jego email."""
         try:
             query = "DELETE FROM registered_users WHERE email = %s"
@@ -433,4 +433,3 @@ class Database:
         except Exception as e:
             print(f"Error deleting user by username: {e}")
             self.conn.rollback()
-

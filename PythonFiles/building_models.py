@@ -33,9 +33,8 @@ class SVDWithMonitoring(SVD):
 
 
 def build_kNN_CF(database):
-
     rating_pivot = database.get_rating_pivot()
-    print('Shape of this pivot table :',rating_pivot.shape)
+    print('Shape of this pivot table :', rating_pivot.shape)
     print(rating_pivot.head())
 
     nn_algo = NearestNeighbors(metric='cosine')
@@ -43,10 +42,10 @@ def build_kNN_CF(database):
 
     joblib.dump(nn_algo, '../knn_model_CF.pkl')
 
-def build_kNN_CBF(database):
 
+def build_kNN_CBF(database):
     contents = database.get_movies_contents()
-    print('Shape of the content table :',contents.shape)
+    print('Shape of the content table :', contents.shape)
     print(contents.head())
 
     nn_algo = NearestNeighbors(metric='cosine')
@@ -63,12 +62,11 @@ def build_SVD(database):
 
     trainset, testset = train_test_split(data, test_size=0.2)
 
-
     # List to store RMSE values for each iteration
     rmse_values = []
     mse_values = []
 
-    last_model=None
+    last_model = None
 
     # Training the model and tracking RMSE
     for epoch in range(1, 21):  # Example: 20 iterations (epochs)
@@ -76,21 +74,21 @@ def build_SVD(database):
         model.fit(trainset)
         predictions = model.test(testset)
         rmse = accuracy.rmse(predictions)
-        mse= accuracy.mse(predictions)
+        mse = accuracy.mse(predictions)
         rmse_values.append(rmse)
         mse_values.append(mse)
         if epoch == 20:
-            last_model=model
+            last_model = model
         print(f"Epoch {epoch}: RMSE = {rmse}")
 
     # Plotting the RMSE values
-    plt.plot(range(1, 21,1), rmse_values)
+    plt.plot(range(1, 21, 1), rmse_values)
     plt.xlabel('Epoch')
     plt.ylabel('RMSE')
     plt.title('RMSE During Training')
     plt.show()
-    # Plotting the RMSE values
-    plt.plot(range(1, 21,1), mse_values)
+    # Plotting the MSE values
+    plt.plot(range(1, 21, 1), mse_values)
     plt.xlabel('Epoch')
     plt.ylabel('MSE')
     plt.title('MSE During Training')

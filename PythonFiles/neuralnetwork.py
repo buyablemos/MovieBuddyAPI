@@ -45,13 +45,14 @@ occupation_dict = {
     "writer": 20
 }
 
+
 @keras.saving.register_keras_serializable()
 def rmse(y_true, y_pred):
     y_true = k.cast(y_true, dtype='float32')
     return k.sqrt(k.mean(k.square(y_pred - y_true)))
 
 
-#Content Base Filtering - podejscie
+# Content Base Filtering - podejscie
 
 class Model_NN_CBF:
 
@@ -97,8 +98,8 @@ class Model_NN_CBF:
         target = data['rating']
 
         # Normalizacja cech demograficznych
-        #scaler = StandardScaler()
-        #demographic_features = scaler.fit_transform(demographic_features)
+        # scaler = StandardScaler()
+        # demographic_features = scaler.fit_transform(demographic_features)
 
         # Podział danych na zestawy treningowe i testowe
         X_train_demo, X_test_demo, X_train_genre, X_test_genre, Y_train, Y_test = train_test_split(
@@ -441,7 +442,7 @@ class Model_NN_CF:
 
     def get_prediction(self, userId, movieId):
         input_data = [userId, movieId]
-        #print(input_data)
+        # print(input_data)
         try:
             prediction = self.model.predict(input_data)
             return prediction[0][0]
@@ -475,35 +476,35 @@ class Model_NN_CF:
         return top_recommendations.head(top_n).reset_index(drop=True)
 
 
-gender = 'F'
-age = 0
-occupation = "other or not specified"
-zip_code = 0
-genres = []
-
-gender = 'M'
-age = 45
-occupation = "farmer"
-zip_code = 0
-genres = [all_genres[1], all_genres[9], all_genres[7]]
-
-gender = 'M'
-age = 20
-occupation = "farmer"
-zip_code = 55330
-genres = [all_genres[2], all_genres[3]]
-
-gender = 'M'
-age = 56
-occupation = "retired"
-zip_code = 11002
-genres = ['Comedy', 'Romance']
-
-gender = 'M'
-age = 20
-occupation = "retired"
-zip_code = 55330
-genres = [all_genres[2], all_genres[3]]
+# gender = 'F'
+# age = 0
+# occupation = "other or not specified"
+# zip_code = 0
+# genres = []
+#
+# gender = 'M'
+# age = 45
+# occupation = "farmer"
+# zip_code = 0
+# genres = [all_genres[1], all_genres[9], all_genres[7]]
+#
+# gender = 'M'
+# age = 20
+# occupation = "farmer"
+# zip_code = 55330
+# genres = [all_genres[2], all_genres[3]]
+#
+# gender = 'M'
+# age = 56
+# occupation = "retired"
+# zip_code = 11002
+# genres = ['Comedy', 'Romance']
+#
+# gender = 'M'
+# age = 20
+# occupation = "retired"
+# zip_code = 55330
+# genres = [all_genres[2], all_genres[3]]
 
 # my_model=Model_NN_CBF()
 # my_model.model_training()

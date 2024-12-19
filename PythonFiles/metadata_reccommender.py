@@ -40,7 +40,6 @@ class MetadataRecommender:
         self.titles = self.md['title']
         self.indices = pd.Series(self.md.index, index=self.md['title'])
 
-
     def get_most_similar_movies(self, title, top_n=10):
 
         idx = self.titles[self.titles == title].index[0]
@@ -101,4 +100,3 @@ class MetadataRecommender:
         data = list(qualified['title'])
 
         return data
-

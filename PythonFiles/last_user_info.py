@@ -21,7 +21,7 @@ class LastUserInfo:
             # Zapisanie zaktualizowanych danych do pliku
             with open(filename, 'w') as file:
                 json.dump(existing_data, file, indent=2)
-                print("Saved last trained user: "+str(user_id)+", model: "+model_name)
+                print("Saved last trained user: " + str(user_id) + ", model: " + model_name)
             return user_id
         except (IOError, OSError) as e:
             print(f"Problem with saving last trained id: {e}")

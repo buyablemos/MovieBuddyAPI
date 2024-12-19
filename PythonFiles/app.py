@@ -13,7 +13,9 @@ import PythonFiles.building_models as building_models
 
 app = Flask(__name__)
 CORS(app)
-#Talisman(app)
+
+
+# Talisman(app)
 
 
 def compute_sha256(input_string: str) -> str:
@@ -30,15 +32,16 @@ def hello_world():  # put application's code here
 
 
 @app.route('/train-basic-models')
-def train_basic_models():  # put application's code here
+def train_basic_models():
     building_models.train_models()
     return 'Models trained'
 
+
 @app.route('/train-nn-models')
-def train_nn_models():  # put application's code here
-    recommender3=Model_NN_CBF()
+def train_nn_models():
+    recommender3 = Model_NN_CBF()
     recommender3.model_training()
-    recommender2=Model_NN_CF()
+    recommender2 = Model_NN_CF()
     recommender2.model_training()
     return 'Models trained'
 
@@ -89,6 +92,7 @@ def recommend_on_movie_metadata():
     end_time = time.time()
     print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
+
 
 @app.route('/recommend_on_movie_metadata_improved', methods=['GET'])
 def recommend_on_movie_metadata_improved():
@@ -152,7 +156,7 @@ def recommend_on_user_SVD():
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_user_SVD(user_id, n_recommend)
-    recommendations=list(recommendations)
+    recommendations = list(recommendations)
     end_time = time.time()
     print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
@@ -259,19 +263,16 @@ def update_user(username):
     if registered_user:
         user_id = registered_user[5]
 
-        # Start transaction
         try:
-            # Jeśli userId jest NULL, stwórz nowego użytkownika
+
             if user_id is None:
-                new_gender = registered_user[4]  # Zakładam, że gender jest na indeksie 4
+                new_gender = registered_user[4]
                 new_age = data.get('age')
                 new_occupation = data.get('occupation')
                 new_zipcode = data.get('zipcode')
 
-                # Dodaj nowego użytkownika
                 new_user_id = db.create_user(new_gender, new_age, new_occupation, new_zipcode)
 
-                # Zaktualizuj userId w registered_users
                 db.update_registered_user_userId(username, new_user_id)
                 user_id = new_user_id
 
@@ -363,7 +364,6 @@ def add_user_rating():
 
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
-
 
 
 @app.route('/<userId>/last-ratings', methods=['GET'])
