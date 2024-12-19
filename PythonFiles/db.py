@@ -104,9 +104,9 @@ def process_title(title):
 
 
 ssl_options = {
-    'ca': './cert/ca-cert.pem',
-    'cert': './cert/client-cert.pem',
-    'key': './cert/client-key.pem'
+    'ca': '/Users/dawid/PycharmProjects/movierecomendationAPI/cert/ca-cert.pem',
+    'cert': '/Users/dawid/PycharmProjects/movierecomendationAPI/cert/client-cert.pem',
+    'key': '/Users/dawid/PycharmProjects/movierecomendationAPI/cert/client-key.pem'
 }
 
 
@@ -176,7 +176,7 @@ class Database:
             """
             self.cursor.execute(query, (username, email, password, gender))
             self.conn.commit()
-        except sqlite3.IntegrityError:
+        except mysql.connector.errors.IntegrityError:
             raise ValueError("Username or email already exists")
 
     def login_user(self, username: str, password: str):
@@ -413,3 +413,24 @@ class Database:
         self.cursor.execute(query)
         userId = self.cursor.fetchone()[0]
         return userId
+
+    def delete_user_by_username(self, username: str):
+        """Usuwa użytkownika z bazy danych na podstawie jego nazwy użytkownika."""
+        try:
+            query = "DELETE FROM registered_users WHERE username = %s"
+            self.cursor.execute(query, (username,))
+            self.conn.commit()
+        except Exception as e:
+            print(f"Error deleting user by username: {e}")
+            self.conn.rollback()
+
+    def delete_user_by_email(self, email:str):
+        """Usuwa użytkownika z bazy danych na podstawie jego email."""
+        try:
+            query = "DELETE FROM registered_users WHERE email = %s"
+            self.cursor.execute(query, (email,))
+            self.conn.commit()
+        except Exception as e:
+            print(f"Error deleting user by username: {e}")
+            self.conn.rollback()
+

@@ -65,7 +65,7 @@ class Recommender:
     #Content Base Filtering
 
     def recommend_on_movie_kNN_CBF(self, movieId, n_reccomend=5):
-        knn_model_CBF = self.load_recommendation_model('../knn_model_CBF.pkl')
+        knn_model_CBF = self.load_recommendation_model('/Users/dawid/PycharmProjects/movierecomendationAPI/knn_model_CBF.pkl')
         movies = self.database.get_movies()
         distance, neighbors = knn_model_CBF.kneighbors([self.database.get_movie_features_on_id(movieId)],
                                                             n_neighbors=n_reccomend + 1)
@@ -78,7 +78,7 @@ class Recommender:
         return recommends[:n_reccomend]
 
     def recommend_on_history_kNN_CBF(self, userId, n_reccomend=5):
-        knn_model_CBF = self.load_recommendation_model('../knn_model_CBF.pkl')
+        knn_model_CBF = self.load_recommendation_model('/Users/dawid/PycharmProjects/movierecomendationAPI/knn_model_CBF.pkl')
         self.hist = []
         self.hist=self.database.get_movies_watched(userId)['movieId'].tolist()
         movies = self.database.get_movies()
@@ -94,7 +94,7 @@ class Recommender:
         watched_movies = self.database.get_movies_watched(user_id)
         self.hist = watched_movies['movieId'].tolist()
 
-        SVD_model = self.load_recommendation_model('../svd_model.pkl')
+        SVD_model = self.load_recommendation_model('/Users/dawid/PycharmProjects/movierecomendationAPI/svd_model.pkl')
 
         all_movie_ids = self.database.get_all_movie_ids()
         history_movie_ids = self.hist

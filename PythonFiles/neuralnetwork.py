@@ -155,20 +155,28 @@ class Model_NN_CBF:
         # Trenowanie modelu
         history = model.fit(
             x=[X_train_demo, X_train_genre], y=Y_train,
-            epochs=10, batch_size=128, validation_split=0.2,
+            epochs=20, batch_size=128, validation_split=0.2,
             callbacks=[early_stopping, checkpoint]
         )
 
         # Wykres strat
+        training_rmse = history.history['rmse']
+        test_rmse = history.history['val_rmse']
         training_loss = history.history['loss']
         test_loss = history.history['val_loss']
         epoch_count = range(1, len(training_loss) + 1)
 
+        plt.plot(epoch_count, training_rmse, 'r--')
+        plt.plot(epoch_count, test_rmse, 'b-')
+        plt.legend(['Training RMSE', 'Test RMSE'])
+        plt.xlabel('Epoch')
+        plt.ylabel('RMSE')
+        plt.show()
         plt.plot(epoch_count, training_loss, 'r--')
         plt.plot(epoch_count, test_loss, 'b-')
-        plt.legend(['Training Loss', 'Test Loss'])
+        plt.legend(['Training MSE', 'Test MSE'])
         plt.xlabel('Epoch')
-        plt.ylabel('Loss')
+        plt.ylabel('MSE')
         plt.show()
 
         # Ewaluacja modelu
@@ -405,16 +413,24 @@ class Model_NN_CF:
         )
 
         # Wykres strat
+        training_rmse = history.history['rmse']
+        test_rmse = history.history['val_rmse']
         training_loss = history.history['loss']
         test_loss = history.history['val_loss']
         epoch_count = range(1, len(training_loss) + 1)
 
         # Rysowanie ykresu strat
+        plt.plot(epoch_count, training_rmse, 'r--')
+        plt.plot(epoch_count, test_rmse, 'b-')
+        plt.legend(['Training RMSE', 'Test RMSE'])
+        plt.xlabel('Epoch')
+        plt.ylabel('RMSE')
+        plt.show()
         plt.plot(epoch_count, training_loss, 'r--')
         plt.plot(epoch_count, test_loss, 'b-')
-        plt.legend(['Training Loss', 'Test Loss'])
+        plt.legend(['Training MSE', 'Test MSE'])
         plt.xlabel('Epoch')
-        plt.ylabel('Loss')
+        plt.ylabel('MSE')
         plt.show()
 
         loss, rmse_value = model.evaluate([X_test_user, X_test_movie], Y_test)

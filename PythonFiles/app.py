@@ -2,13 +2,14 @@ import hashlib
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-
-import db
-import recommender
-from db import Database
-from last_user_info import LastUserInfo
-from metadata_reccommender import MetadataRecommender
-from neuralnetwork import Model_NN_CF, Model_NN_CBF
+import time
+import PythonFiles.db as db
+import PythonFiles.recommender as recommender
+from PythonFiles.db import Database
+from PythonFiles.last_user_info import LastUserInfo
+from PythonFiles.metadata_reccommender import MetadataRecommender
+from PythonFiles.neuralnetwork import Model_NN_CF, Model_NN_CBF
+import PythonFiles.building_models as building_models
 
 app = Flask(__name__)
 CORS(app)
@@ -28,71 +29,107 @@ def hello_world():  # put application's code here
     return 'Hello World!'
 
 
+@app.route('/train-basic-models')
+def train_basic_models():  # put application's code here
+    building_models.train_models()
+    return 'Models trained'
+
+@app.route('/train-nn-models')
+def train_nn_models():  # put application's code here
+    recommender3=Model_NN_CBF()
+    recommender3.model_training()
+    recommender2=Model_NN_CF()
+    recommender2.model_training()
+    return 'Models trained'
+
+
 @app.route('/recommend_on_movie_kNN_CF', methods=['GET'])
 def recommend_on_movie_kNN_CF():
+    start_time = time.time()
     movieId = int(request.args.get('movieId'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_movie_kNN_CF(movieId, n_recommend)
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
 
 
 @app.route('/recommend_on_history_kNN_CF', methods=['GET'])
 def recommend_on_history_kNN_CF():
+    start_time = time.time()
     user_id = int(request.args.get('user_id'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_user_history_kNN_CF(user_id, n_recommend)
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
 
 
 @app.route('/recommend_on_movie_kNN_CBF', methods=['GET'])
 def recommend_on_movie_kNN_CBF():
+    start_time = time.time()
     movieId = int(request.args.get('movieId'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_movie_kNN_CBF(movieId, n_recommend)
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
 
 
 @app.route('/recommend_on_movie_metadata', methods=['GET'])
 def recommend_on_movie_metadata():
+    start_time = time.time()
     title = request.args.get('title')
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = MetadataRecommender()
     recommendations = reco.get_most_similar_movies(title, n_recommend)
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
 
 @app.route('/recommend_on_movie_metadata_improved', methods=['GET'])
 def recommend_on_movie_metadata_improved():
+    start_time = time.time()
     title = request.args.get('title')
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = MetadataRecommender()
     recommendations = reco.improved_recommendations(title, n_recommend)
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
 
 
 @app.route('/recommend_on_history_kNN_CBF', methods=['GET'])
 def recommend_on_history_kNN_CBF():
+    start_time = time.time()
     user_id = int(request.args.get('user_id'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_history_kNN_CBF(user_id, n_recommend)
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
 
 
 @app.route('/reccomend_on_user_NN_CF', methods=['GET'])
 def reccomend_on_user_NN_CF():
+    start_time = time.time()
     user_id = int(request.args.get('user_id'))
     n_recommend = int(request.args.get('n_recommend', 5))
     my_model = Model_NN_CF()
     recommendations = my_model.get_top_n_recommendations(user_id, n_recommend)
     rating_title_list = list(zip(recommendations['predicted_rating'], recommendations['title']))
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': rating_title_list})
 
 
 @app.route('/reccomend_on_user_NN_CBF', methods=['GET'])
 def reccomend_on_user_NN_CBF():
+    start_time = time.time()
     user_id = int(request.args.get('user_id'))
     user_details = db.Database().get_user_details(user_id)
     gender = user_details['gender'].iloc[0]
@@ -103,16 +140,21 @@ def reccomend_on_user_NN_CBF():
     my_model = Model_NN_CBF()
     recommendations = my_model.get_predictions_on_all_movies(gender, age, occupation, zip_code, n_recommend)
     rating_title_list = list(zip(recommendations['predicted_rating'], recommendations['title']))
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': rating_title_list})
 
 
 @app.route('/recommend_on_user_SVD', methods=['GET'])
 def recommend_on_user_SVD():
+    start_time = time.time()
     user_id = int(request.args.get('user_id'))
     n_recommend = int(request.args.get('n_recommend', 5))
     reco = recommender.Recommender()
     recommendations = reco.recommend_on_user_SVD(user_id, n_recommend)
     recommendations=list(recommendations)
+    end_time = time.time()
+    print(f"Czas wykonania: {end_time - start_time} sekund")
     return jsonify({'data': recommendations})
 
 
@@ -299,18 +341,29 @@ def get_user_id_by_username(username):
 @app.route('/add-rating', methods=['POST'])
 def add_user_rating():
     db = Database()
-    data = request.get_json()
+    try:
+        data = request.get_json()
 
-    userid = data['userId']
-    movieid = data['movieId']
-    rating = data['rating']
+        if 'userId' not in data or 'movieId' not in data or 'rating' not in data:
+            return jsonify({'success': False, 'error': 'Missing parameters'}), 400
 
-    done = db.add_rating(userid, movieid, rating)
+        userid = data['userId']
+        movieid = data['movieId']
+        rating = data['rating']
 
-    if done:
-        return jsonify({'success': True, 'message': 'Rating added successfully'})
-    else:
-        return jsonify({'success': False, 'error': 'Rating not added'})
+        if userid is None or movieid is None or rating is None:
+            return jsonify({'success': False, 'error': 'Missing parameters'}), 400
+
+        done = db.add_rating(userid, movieid, rating)
+
+        if done:
+            return jsonify({'success': True, 'message': 'Rating added successfully'}), 200
+        else:
+            return jsonify({'success': False, 'error': 'Rating not added'}), 200
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 
 @app.route('/<userId>/last-ratings', methods=['GET'])
@@ -385,4 +438,4 @@ def delete_rating(userId, movieId):
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=2115)
+    app.run(host='0.0.0.0', port=2118)

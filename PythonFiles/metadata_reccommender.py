@@ -14,7 +14,7 @@ def calculate_similarity(md):
     count = CountVectorizer(analyzer='word', ngram_range=(1, 2), min_df=0.0, stop_words='english')
     count_matrix = count.fit_transform(md['soup'])
     cosine_sim = cosine_similarity(count_matrix, count_matrix)
-    np.save('../cosine_similarity_matrix.npy', cosine_sim)
+    np.save('/Users/dawid/PycharmProjects/movierecomendationAPI/cosine_similarity_matrix.npy', cosine_sim)
 
 
 def weighted_rating(x, m, c):
@@ -29,12 +29,12 @@ class MetadataRecommender:
     def __init__(self):
         self.db = Database()
         self.md = self.db.get_metadata_movies()
-        if os.path.exists('../cosine_similarity_matrix.npy'):
-            self.cosine_sim = np.load('../cosine_similarity_matrix.npy')
+        if os.path.exists('/Users/dawid/PycharmProjects/movierecomendationAPI/cosine_similarity_matrix.npy'):
+            self.cosine_sim = np.load('/Users/dawid/PycharmProjects/movierecomendationAPI/cosine_similarity_matrix.npy')
         else:
             print("No file for cosine similarity - MetadataRecommender - Creating new one...")
             calculate_similarity(self.md)
-            self.cosine_sim = np.load('../cosine_similarity_matrix.npy')
+            self.cosine_sim = np.load('/Users/dawid/PycharmProjects/movierecomendationAPI/cosine_similarity_matrix.npy')
 
         self.md = self.md.reset_index()
         self.titles = self.md['title']
